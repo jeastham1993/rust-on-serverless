@@ -28,7 +28,7 @@ Resources:
         - x86_64
       Events:
         RustApi:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: HttpApi # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
             Path: /{id}
             Method: put
@@ -42,7 +42,7 @@ Resources:
 Outputs:
   ServerlessApi:
     Description: "API Gateway endpoint URL for Prod stage for Put function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/"
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/"
   PutFunction:
     Description: "Put Lambda Function ARN"
     Value: !GetAtt PutFunction.Arn

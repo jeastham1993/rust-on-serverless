@@ -32,11 +32,16 @@ async fn function_handler(
     client: &dyn Repository,
     request: LambdaEvent<ApiGatewayV2httpRequest>
 ) -> Result<ApiGatewayV2httpResponse, Error> {
+    tracing::info!("Received request from API Gateway");
+
     let path_parameters = request.payload.path_parameters;
+    
+    tracing::info!(path_parameters = serde_json::to_string(&path_parameters).unwrap(), "Received request from API Gateway");
+
     let id = match path_parameters.get("id") {
         Some(id) => id,
         None => {
-            println!("id not found in path params");
+            tracing::error!("Id not found");
             
             return Ok(ApiGatewayV2httpResponse{
                 body: Some(Body::Text("Id required".to_string())),
@@ -45,22 +50,42 @@ async fn function_handler(
             })
         },
     };
+
+    if id == "" {
+        tracing::error!("Id not found");
+            
+        return Ok(ApiGatewayV2httpResponse{
+            body: Some(Body::Text("Id required".to_string())),
+            status_code: 400,
+            ..Default::default()
+        })
+    }
 
     // Extract body from request
     let body = match request.payload.body {
         Some(id) => id,
         None => {
-            println!("body not found");
+            tracing::error!("Body not found");
             
             return Ok(ApiGatewayV2httpResponse{
-                body: Some(Body::Text("Id required".to_string())),
+                body: Some(Body::Text("Body required".to_string())),
                 status_code: 400,
                 ..Default::default()
             })
         },
     };
 
-    tracing::info!(id = id, body = body, "Received request from API Gateway");
+    if body == "" {
+        tracing::error!("Id not found");
+            
+        return Ok(ApiGatewayV2httpResponse{
+            body: Some(Body::Text("Body required".to_string())),
+            status_code: 400,
+            ..Default::default()
+        })
+    }
+
+    tracing::info!(body = serde_json::to_string(&body).unwrap(), "Body found");
 
     let res = client.store_data(&id.to_string(), &body).await;
 
@@ -157,26 +182,9 @@ mod tests {
     async fn test_success() {
         let client = MockRepository{should_fail: false};
 
-        // Mock API Gateway request
-        let mut path_parameters = HashMap::new();
-        path_parameters.insert("id".to_string(), "1".to_string());
+        let request = build_request("test1".to_string(), "hello".to_string());
 
-        let request = ApiGatewayV2httpRequest{
-            path_parameters: path_parameters,
-            body: Some("hello".to_string()),
-            ..Default::default()
-        };
-
-        let mut headers = HeaderMap::new();
-        headers.insert("lambda-runtime-aws-request-id", HeaderValue::from_static("my-id"));
-        headers.insert("lambda-runtime-deadline-ms", HeaderValue::from_static("123"));
-        headers.insert(
-            "lambda-runtime-invoked-function-arn",
-            HeaderValue::from_static("arn::myarn"),
-        );
-        headers.insert("lambda-runtime-trace-id", HeaderValue::from_static("arn::myarn"));
-
-        let test_context = Context::try_from(headers).expect("Failure parsing context");
+        let test_context = build_test_context();
 
         let lambda_event = LambdaEvent { context: test_context, payload: request };
 
@@ -188,33 +196,15 @@ mod tests {
         // Assert that the response is correct
         assert_eq!(response.status_code, 200);
         assert_eq!(response.body.unwrap(), Body::Text("item saved".to_string()));
-
     }
 
     #[tokio::test]
     async fn test_repository_failure() {
         let client = MockRepository{should_fail: true};
 
-        // Mock API Gateway request
-        let mut path_parameters = HashMap::new();
-        path_parameters.insert("id".to_string(), "1".to_string());
+        let request = build_request("test1".to_string(), "hello".to_string());
 
-        let request = ApiGatewayV2httpRequest{
-            path_parameters: path_parameters,
-            body: Some("hello".to_string()),
-            ..Default::default()
-        };
-
-        let mut headers = HeaderMap::new();
-        headers.insert("lambda-runtime-aws-request-id", HeaderValue::from_static("my-id"));
-        headers.insert("lambda-runtime-deadline-ms", HeaderValue::from_static("123"));
-        headers.insert(
-            "lambda-runtime-invoked-function-arn",
-            HeaderValue::from_static("arn::myarn"),
-        );
-        headers.insert("lambda-runtime-trace-id", HeaderValue::from_static("arn::myarn"));
-
-        let test_context = Context::try_from(headers).expect("Failure parsing context");
+        let test_context = build_test_context();
 
         let lambda_event = LambdaEvent { context: test_context, payload: request };
 
@@ -226,6 +216,70 @@ mod tests {
         // Assert that the response is correct
         assert_eq!(response.status_code, 500);
         assert_eq!(response.body.unwrap(), Body::Text("Internal server error".to_string()));
+    }
 
+    #[tokio::test]
+    async fn test_empty_id_should_return_400() {
+        let client = MockRepository{should_fail: false};
+
+        let request = build_request("".to_string(), "hello".to_string());
+
+        let test_context = build_test_context();
+
+        let lambda_event = LambdaEvent { context: test_context, payload: request };
+
+        // Send mock request to Lambda handler function
+        let response = function_handler(&client, lambda_event)
+            .await
+            .unwrap();
+
+        // Assert that the response is correct
+        assert_eq!(response.status_code, 400);
+        assert_eq!(response.body.unwrap(), Body::Text("Id required".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_empty_body_should_return_400() {
+        let client = MockRepository{should_fail: false};
+
+        let request = build_request("test1".to_string(), "".to_string());
+
+        let test_context = build_test_context();
+
+        let lambda_event = LambdaEvent { context: test_context, payload: request };
+
+        // Send mock request to Lambda handler function
+        let response = function_handler(&client, lambda_event)
+            .await
+            .unwrap();
+
+        // Assert that the response is correct
+        assert_eq!(response.status_code, 400);
+        assert_eq!(response.body.unwrap(), Body::Text("Body required".to_string()));
+    }
+
+    fn build_request(id: String, body: String) -> ApiGatewayV2httpRequest {
+        // Mock API Gateway request
+        let mut path_parameters = HashMap::new();
+        path_parameters.insert("id".to_string(), id);
+
+        ApiGatewayV2httpRequest{
+            path_parameters: path_parameters,
+            body: Some(body),
+            ..Default::default()
+        }
+    }
+
+    fn build_test_context() -> Context {
+        let mut headers = HeaderMap::new();
+        headers.insert("lambda-runtime-aws-request-id", HeaderValue::from_static("my-id"));
+        headers.insert("lambda-runtime-deadline-ms", HeaderValue::from_static("123"));
+        headers.insert(
+            "lambda-runtime-invoked-function-arn",
+            HeaderValue::from_static("arn::myarn"),
+        );
+        headers.insert("lambda-runtime-trace-id", HeaderValue::from_static("arn::myarn"));
+
+        Context::try_from(headers).expect("Failure parsing context")
     }
 }
