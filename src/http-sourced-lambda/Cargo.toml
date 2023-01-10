@@ -1,5 +1,5 @@
 [package]
-name = "rust-sam-app"
+name = "todo"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,21 +9,38 @@ edition = "2021"
 aws-config = "0.52.0"
 aws-sdk-dynamodb = "0.22.0"
 aws-smithy-client = { version = "0.52.0", features = ["test-util"] }
-lambda_http = "0.7.2"
+lambda_http = {version = "0.7.2", optional = true }
 tokio = { version = "1.21.1", features = ["full"] }
 tracing = { version = "0.1", features = ["log"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt"] }
 serde = "1.0.152"
 serde_json = "1.0.91"
 aws_lambda_events = "0.7.2"
-lambda_runtime = "0.7.2"
+lambda_runtime = {version = "0.7.2", optional = true }
 async-trait = "0.1.51"
 slog = "2.7.0"
 slog-term = "2.9.0"
 slog-async = "2.7.0"
+uuid = { version = "1.2.2", features = ["v4"] }
 
 [dev-dependencies]
 aws-smithy-http = "0.52.0"
 aws-types = { version = "0.52.0", features = ["hardcoded-credentials"] }
 http = "0.2.8"
 mockall = "0.11.2"
+
+[features]
+default = ["lambda"]
+lambda = ["lambda_runtime", "lambda_http"]
+
+[[bin]]
+name = "create_todo"
+path = "src/bin/lambda/create_todo.rs"
+test = false
+required-features = ["lambda"]
+
+[[bin]]
+name = "get_todo"
+path = "src/bin/lambda/get_todo.rs"
+test = false
+required-features = ["lambda"]

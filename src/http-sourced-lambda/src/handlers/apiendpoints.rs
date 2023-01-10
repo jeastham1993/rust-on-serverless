@@ -1,34 +1,72 @@
-use async_trait::async_trait;
-use aws_sdk_dynamodb::{model::AttributeValue, Client};
 use lambda_http::Body;
-use lambda_runtime::{run, service_fn, Error, LambdaEvent};
+use lambda_runtime::{Error, LambdaEvent};
 use aws_lambda_events::event::apigw::{ApiGatewayV2httpRequest, ApiGatewayV2httpResponse};
-use serde::{Deserialize, Serialize};
-use std::{env};
+use serde::{Serialize, Deserialize};
+use crate::shared::{data::{Repository}, models::ToDo};
 
-/// Main function
-#[tokio::main]
-async fn main() -> Result<(), Error> {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .with_target(false)
-        .without_time()
-        .init();
-
-    // Initialize the AWS SDK for Rust
-    let config = aws_config::load_from_env().await;
-    let table_name = &env::var("TABLE_NAME").expect("TABLE_NAME must be set");
-    let dynamodb_client = Client::new(&config);
-    let repository: DynamoDbRepository = DynamoDbRepository::new(dynamodb_client, table_name);
-
-    let _res = run(service_fn(|request: LambdaEvent<ApiGatewayV2httpRequest>| {
-        function_handler(&repository, request)
-    })).await;
-
-    Ok(())
+#[derive(Deserialize, Serialize)]
+struct CreateProductCommand {
+    pub title: String,
+    pub is_completed: bool,
+    pub owner_id: String
 }
 
-async fn function_handler(
+pub async fn create_todo(
+    client: &dyn Repository,
+    request: LambdaEvent<ApiGatewayV2httpRequest>
+) -> Result<ApiGatewayV2httpResponse, Error> {
+    tracing::info!("Received request from API Gateway");
+
+    // Extract body from request
+    let body = match request.payload.body {
+        Some(id) => id,
+        None => {
+            tracing::error!("Body not found");
+            
+            return Ok(ApiGatewayV2httpResponse{
+                body: Some(Body::Text("Body required".to_string())),
+                status_code: 400,
+                ..Default::default()
+            })
+        },
+    };
+
+    if body == "" {
+        tracing::error!("Body not found");
+            
+        return Ok(ApiGatewayV2httpResponse{
+            body: Some(Body::Text("Body required".to_string())),
+            status_code: 400,
+            ..Default::default()
+        })
+    }
+
+    let command: CreateProductCommand = serde_json::from_str(&body).unwrap();
+
+    let res = client.store_todo(&ToDo::new(command.title, command.is_completed, command.owner_id))
+        .await;
+
+    let response = ApiGatewayV2httpResponse{
+        body: Some(Body::Text("item saved".to_string())),
+        status_code: 200,
+        ..Default::default()
+    };
+
+    // Return a response to the end-user
+    match res {
+        Ok(_) => Ok(response),
+        Err(err) => Ok({
+            tracing::error!(err);
+            
+            ApiGatewayV2httpResponse{
+            body: Some(Body::Text("Internal server error".to_string())),
+            status_code: 500,
+            ..Default::default()
+        }}),
+    }
+}
+
+pub async fn get_todo(
     client: &dyn Repository,
     request: LambdaEvent<ApiGatewayV2httpRequest>
 ) -> Result<ApiGatewayV2httpResponse, Error> {
@@ -61,95 +99,24 @@ async fn function_handler(
         })
     }
 
-    // Extract body from request
-    let body = match request.payload.body {
-        Some(id) => id,
-        None => {
-            tracing::error!("Body not found");
-            
-            return Ok(ApiGatewayV2httpResponse{
-                body: Some(Body::Text("Body required".to_string())),
-                status_code: 400,
-                ..Default::default()
-            })
-        },
-    };
-
-    if body == "" {
-        tracing::error!("Id not found");
-            
-        return Ok(ApiGatewayV2httpResponse{
-            body: Some(Body::Text("Body required".to_string())),
-            status_code: 400,
-            ..Default::default()
-        })
-    }
-
-    tracing::info!(body = serde_json::to_string(&body).unwrap(), "Body found");
-
-    let res = client.store_data(&id.to_string(), &body).await;
-
-    let response = ApiGatewayV2httpResponse{
-        body: Some(Body::Text("item saved".to_string())),
-        status_code: 200,
-        ..Default::default()
-    };
+    let res = client.get_todo(id).await;
 
     // Return a response to the end-user
     match res {
-        Ok(_) => Ok(response),
-        Err(_) => Ok(ApiGatewayV2httpResponse{
+        Ok(_) => Ok(ApiGatewayV2httpResponse{
+            body: Some(Body::Text(serde_json::to_string(&res.unwrap()).unwrap())),
+            status_code: 200,
+            ..Default::default()
+        }),
+        Err(err) => Ok({
+            tracing::error!(err);
+            
+            ApiGatewayV2httpResponse{
             body: Some(Body::Text("Internal server error".to_string())),
             status_code: 500,
             ..Default::default()
-        }),
+        }}),
     }
-}
-
-#[derive(Deserialize, Serialize)]
-pub struct MessageBody {
-    contents: String,
-}
-
-pub struct DynamoDbRepository<'a> {
-    client: Client,
-    table_name: &'a String,
-}
-
-impl DynamoDbRepository<'_> {
-    fn new(client: Client, table_name: &String) -> DynamoDbRepository{
-        return DynamoDbRepository { client: client, table_name: table_name }
-    }
-}
-
-#[async_trait]
-impl Repository for DynamoDbRepository<'_> {
-    async fn store_data(&self, id: &String, body: &String) -> Result<String, Error> {
-
-        tracing::info!("Storing record in DynamoDB");
-
-        let res = self.client
-            .put_item()
-            .table_name(self.table_name)
-            .item("id", AttributeValue::S(id.to_string()))
-            .item("payload", AttributeValue::S(body.to_string()))
-            .send()
-            .await;
-
-        match res {
-            Ok(_) => Ok("OK".to_string()),
-            Err(e) => return Err(Box::new(e))
-        }
-    }
-}
-
-#[async_trait]
-pub trait Repository {
-    async fn store_data(
-        &self,
-        id: &String,
-        body: &String
-    ) -> Result<String, Error>;
 }
 
 /// Unit tests
@@ -158,6 +125,7 @@ pub trait Repository {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use async_trait::async_trait;
     use http::{HeaderMap, HeaderValue};
     use std::collections::HashMap;
     use lambda_runtime::{LambdaEvent, Context};
@@ -168,7 +136,7 @@ mod tests {
 
     #[async_trait]
     impl Repository for MockRepository {
-        async fn store_data(&self, _id: &String, _body: &String) -> Result<String, Error> {
+        async fn store_todo(&self, _id: &ToDo) -> Result<String, Error> {
             if self.should_fail {
                 return Err("Forced failure!")?;
             }

@@ -18,10 +18,10 @@ Resources:
         Name: id
         Type: String
 
-  PutFunction:
+  GetToDoFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: target/lambda/rust-sam-app/
+      CodeUri: target/lambda/get_todo/
       Handler: bootstrap.is.the.handler
       Runtime: provided.al2
       Architectures:
@@ -31,7 +31,28 @@ Resources:
           Type: HttpApi # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
             Path: /{id}
-            Method: put
+            Method: get
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Table
+      Policies:
+        - DynamoDBReadPolicy: # More info about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+            TableName: !Ref Table
+
+  CreateToDoFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: target/lambda/create_todo/
+      Handler: bootstrap.is.the.handler
+      Runtime: provided.al2
+      Architectures:
+        - x86_64
+      Events:
+        RustApi:
+          Type: HttpApi # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /{id}
+            Method: post
       Environment:
         Variables:
           TABLE_NAME: !Ref Table
@@ -42,10 +63,4 @@ Resources:
 Outputs:
   ServerlessApi:
     Description: "API Gateway endpoint URL for Prod stage for Put function"
-    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/"
-  PutFunction:
-    Description: "Put Lambda Function ARN"
-    Value: !GetAtt PutFunction.Arn
-  PutTable:
-    Description: "DynamoDB table name"
-    Value: !GetAtt Table.Arn
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/"
