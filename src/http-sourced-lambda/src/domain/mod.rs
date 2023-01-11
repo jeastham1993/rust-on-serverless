@@ -1,3 +1,4 @@
 #[cfg(feature = "lambda")]
-pub mod domain;
 pub mod entities;
+pub mod error_types;
+pub mod public_types;
