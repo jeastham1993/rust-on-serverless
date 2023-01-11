@@ -7,12 +7,10 @@ pub async fn create_to_do(
     input: UnvalidatedToDo,
     client: &dyn Repository,
 ) -> Result<CreatedToDo, ValidationError> {
-    let validation_workflow = ValidateToDo::new();
+    let validation_workflow = ValidateToDo::new(input);
 
     let to_do = validation_workflow
-        .check_title(input.title)
-        .check_owner_id(input.owner_id)
-        .generate();
+        .validate();
 
     match to_do {
         Ok(val) => {

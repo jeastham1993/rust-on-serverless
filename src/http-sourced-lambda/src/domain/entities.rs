@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     error_types::{RepositoryError, ValidationError},
-    public_types::{CreatedToDo, ToDoItem, ValidatedToDo},
+    public_types::{CreatedToDo, ToDoItem, ValidatedToDo, UnvalidatedToDo},
 };
 
 pub struct ToDoId {
@@ -48,18 +48,6 @@ impl Title {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub enum IsComplete {
-    INCOMPLETE,
-    COMPLETE,
-}
-
-impl fmt::Display for IsComplete {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
 pub struct OwnerId {
     value: String,
 }
@@ -78,46 +66,41 @@ impl OwnerId {
     }
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+pub enum IsComplete {
+    INCOMPLETE,
+    COMPLETE,
+}
+
+impl fmt::Display for IsComplete {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 pub struct ValidateToDo {
     title: Option<Title>,
     owner_id: Option<OwnerId>,
     is_complete: IsComplete,
-    errors: Vec<ValidationError>,
+    pub errors: Vec<ValidationError>,
+    to_validate: UnvalidatedToDo
 }
 
 impl ValidateToDo {
-    pub fn new() -> Self {
+    pub fn new(unvalidated_todo: UnvalidatedToDo) -> Self {
         ValidateToDo {
             title: Option::None,
             owner_id: Option::None,
             is_complete: IsComplete::INCOMPLETE,
             errors: Vec::new(),
+            to_validate: unvalidated_todo
         }
     }
 
-    pub fn check_title(mut self, title: String) -> Self {
-        let title = Title::new(title);
-
-        match title {
-            Ok(val) => self.title = Some(val),
-            Err(e) => self.errors.push(e),
-        };
-
-        self
-    }
-
-    pub fn check_owner_id(mut self, owner_id: String) -> Self {
-        let owner_id = OwnerId::new(owner_id);
-
-        match owner_id {
-            Ok(val) => self.owner_id = Some(val),
-            Err(e) => self.errors.push(e),
-        };
-
-        self
-    }
-
-    pub fn generate(self) -> Result<ValidatedToDo, ValidationError> {
+    pub fn validate(mut self) -> Result<ValidatedToDo, ValidationError> {
+        self = self.check_title()
+            .check_owner_id();
+            
         if self.errors.len() > 0 {
             let mut errors = "".to_string();
 
@@ -136,6 +119,28 @@ impl ValidateToDo {
             owner_id: self.owner_id.unwrap(),
         })
     }
+    
+    fn check_title(mut self) -> Self {
+        let title = Title::new(self.to_validate.title.clone());
+
+        match title {
+            Ok(val) => self.title = Some(val),
+            Err(e) => self.errors.push(e),
+        };
+
+        self
+    }
+
+    fn check_owner_id(mut self) -> Self {
+        let owner_id = OwnerId::new(self.to_validate.owner_id.clone());
+
+        match owner_id {
+            Ok(val) => self.owner_id = Some(val),
+            Err(e) => self.errors.push(e),
+        };
+
+        self
+    }
 }
 
 #[async_trait]
@@ -150,16 +155,19 @@ pub trait Repository {
 /// These tests are run using the `cargo test` command.
 #[cfg(test)]
 mod tests {
+    use crate::domain::public_types::UnvalidatedToDo;
+
     use super::ValidateToDo;
 
     #[test]
     fn valid_data_should_return_validated_to_do() {
-        let validator = ValidateToDo::new();
+        let validator = ValidateToDo::new(UnvalidatedToDo{
+            is_complete: false,
+            owner_id: "jameseastham".to_string(),
+            title: "my title".to_string()
+        });
 
-        let to_do = validator
-            .check_title("my title".to_string())
-            .check_owner_id("jameseastham".to_string())
-            .generate();
+        let to_do = validator.validate();
 
         let res = to_do.as_ref().unwrap();
         
@@ -171,12 +179,13 @@ mod tests {
 
     #[test]
     fn empty_title_should_return_validate_error() {
-        let validator = ValidateToDo::new();
+        let validator = ValidateToDo::new(UnvalidatedToDo{
+            is_complete: false,
+            owner_id: "jameseastham".to_string(),
+            title: "".to_string()
+        });
 
-        let to_do = validator
-            .check_title("".to_string());
-
-        let res = to_do.generate();
+        let res = validator.validate();
         
         assert_eq!(res.is_err(), true);
         assert_eq!(res.err().unwrap().to_string(), "Validation error:  - Validation error: Must be between 0 and 50 chars");
@@ -184,13 +193,13 @@ mod tests {
 
     #[test]
     fn empty_owner_should_return_validate_error() {
-        let validator = ValidateToDo::new();
+        let validator = ValidateToDo::new(UnvalidatedToDo{
+            is_complete: false,
+            owner_id: "".to_string(),
+            title: "my title".to_string()
+        });
 
-        let to_do = validator
-            .check_title("test".to_string())
-            .check_owner_id("".to_string());
-
-        let res = to_do.generate();
+        let res = validator.validate();
         
         assert_eq!(res.is_err(), true);
         assert_eq!(res.err().unwrap().to_string(), "Validation error:  - Validation error: Must be greater than 0");
