@@ -6,8 +6,7 @@ use lambda_http::{
 use lambda_runtime::LambdaEvent;
 
 use crate::{
-    domain::{entities::Repository, public_types::{UnvalidatedToDo, ToDoItem}},
-    services::create_todo_service,
+    domain::{entities::Repository, public_types::{UnvalidatedToDo, ToDoItem}, create_todo_service},
 };
 
 pub async fn create_todo_handler(
