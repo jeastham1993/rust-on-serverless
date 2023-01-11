@@ -12,11 +12,11 @@ As Rust is intended as a C/C++ like language, isn't particularly object orientat
 
 A simple HTTP web server implemented in Rust.
 
-### API Gateway -> AWS Lambda
+### Serverless ToDo API
 
-[Link](./src/http-sourced-lambda)
+[Link](./src/serverless-todo)
 
-A Lambda function implemented in Rust sourced by a API Gateway HTTP API.
+A ToDo API implemented with API Gateway, Lambda & DynamoDB
 
 ### SQS -> AWS Lambda
 
