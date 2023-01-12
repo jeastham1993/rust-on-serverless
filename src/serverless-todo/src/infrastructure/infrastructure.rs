@@ -30,7 +30,7 @@ impl Repository for DynamoDbRepository<'_> {
 
         let created_to_do = CreatedToDo {
             title: body.title,
-            id: ToDoId::new(Uuid::new_v4().to_string()).unwrap(),
+            id: body.id,
             is_complete: body.is_complete,
             owner_id: body.owner_id,
         };
@@ -39,13 +39,10 @@ impl Repository for DynamoDbRepository<'_> {
             .client
             .put_item()
             .table_name(self.table_name)
-            .item(
-                "id",
-                AttributeValue::S(created_to_do.id.get_value()),
-            )
+            .item("id", AttributeValue::S(created_to_do.id.to_string().into()))
             .item(
                 "title",
-                AttributeValue::S(created_to_do.title.get_value()),
+                AttributeValue::S(created_to_do.title.to_string().into()),
             )
             .item(
                 "isComplete",
@@ -53,7 +50,7 @@ impl Repository for DynamoDbRepository<'_> {
             )
             .item(
                 "ownerId",
-                AttributeValue::S(created_to_do.owner_id.get_value()),
+                AttributeValue::S(created_to_do.owner_id.to_string().into()),
             )
             .send()
             .await;

@@ -1,4 +1,4 @@
-use aws_lambda_events::{event::apigw::ApiGatewayV2httpRequest};
+use aws_lambda_events::event::apigw::ApiGatewayV2httpRequest;
 use aws_sdk_dynamodb::Client;
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 use std::env;

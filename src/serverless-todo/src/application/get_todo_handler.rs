@@ -1,7 +1,7 @@
 use aws_lambda_events::{apigw::ApiGatewayV2httpResponse, event::apigw::ApiGatewayV2httpRequest};
 use lambda_http::{
     http::{HeaderMap, HeaderValue},
-    Error, Body,
+    Body, Error,
 };
 use lambda_runtime::LambdaEvent;
 
@@ -59,7 +59,9 @@ pub async fn get_todo_handler(
             tracing::error!("{}", err.to_string());
 
             ApiGatewayV2httpResponse {
-                body: Some(Body::Text(format_error_response("Internal server error".to_string()))),
+                body: Some(Body::Text(format_error_response(
+                    "Internal server error".to_string(),
+                ))),
                 status_code: 500,
                 headers: default_headers(),
                 ..Default::default()

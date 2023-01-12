@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use aws_lambda_events::apigw::{ApiGatewayV2httpRequest, ApiGatewayV2httpResponse};
 use lambda_http::{
     http::{HeaderMap, HeaderValue},
@@ -5,8 +7,10 @@ use lambda_http::{
 };
 use lambda_runtime::LambdaEvent;
 
-use crate::{
-    domain::{entities::Repository, public_types::{UnvalidatedToDo, ToDoItem}, create_todo_service},
+use crate::domain::{
+    create_todo_service,
+    entities::Repository,
+    public_types::{ToDoItem, UnvalidatedToDo},
 };
 
 pub async fn create_todo_handler(
@@ -39,11 +43,14 @@ pub async fn create_todo_handler(
     // Convert the domain response back to a valid HTTP response
     Ok(ApiGatewayV2httpResponse {
         body: match &created_todo {
-            Ok(val) => Some(Body::Text(serde_json::to_string_pretty(&ToDoItem {
-                id: val.id.get_value(),
-                is_complete: val.is_complete.to_string(),
-                title: val.title.get_value()
-            }).unwrap())),
+            Ok(val) => Some(Body::Text(
+                serde_json::to_string_pretty(&ToDoItem {
+                    id: val.id.to_string().into(),
+                    is_complete: val.is_complete.to_string(),
+                    title: val.title.to_string().into(),
+                })
+                .unwrap(),
+            )),
             Err(err) => Some(Body::Text(format_error_response(err.to_string()))),
         },
         status_code: match &created_todo {
@@ -114,10 +121,10 @@ mod tests {
                 return Err(RepositoryError::new("Forced failure!".to_string()));
             } else {
                 Ok(CreatedToDo {
-                    id: ToDoId::new("test".to_string()).unwrap(),
-                    title: Title::new("test".to_string()).unwrap(),
+                    id: ToDoId::ToDoId("test".to_string()),
+                    title: Title::Title("test".to_string()),
                     is_complete: IsComplete::INCOMPLETE,
-                    owner_id: OwnerId::new("test".to_string()).unwrap(),
+                    owner_id: OwnerId::OwnerId("test".to_string()),
                 })
             }
         }
@@ -216,7 +223,7 @@ mod tests {
         assert_eq!(response.status_code, 400);
         assert_eq!(
             response.body.unwrap(),
-            Body::Text("{\"message\": Validation error:  - Validation error: Must be between 0 and 50 chars}".to_string())
+            Body::Text("{\"message\": Validation error:  - Validation error: Must be between 1 and 50 chars}".to_string())
         );
     }
 
@@ -240,7 +247,7 @@ mod tests {
         assert_eq!(response.status_code, 400);
         assert_eq!(
             response.body.unwrap(),
-            Body::Text("{\"message\": Validation error:  - Validation error: Must be between 0 and 50 chars}".to_string())
+            Body::Text("{\"message\": Validation error:  - Validation error: Must be between 1 and 50 chars}".to_string())
         );
     }
 

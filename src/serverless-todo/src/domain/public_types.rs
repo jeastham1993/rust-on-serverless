@@ -10,6 +10,7 @@ pub struct UnvalidatedToDo {
 }
 
 pub struct ValidatedToDo {
+    pub id: ToDoId,
     pub title: Title,
     pub is_complete: IsComplete,
     pub owner_id: OwnerId,
