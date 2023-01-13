@@ -44,7 +44,7 @@ impl ValidationError {
     }
 
     pub fn to_string(&self) -> String {
-        format!("Validation error: {0}", self.error_message)
+        self.error_message.to_string()
     }
 }
 

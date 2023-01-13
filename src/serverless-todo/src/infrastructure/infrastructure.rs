@@ -1,12 +1,10 @@
 use async_trait::async_trait;
 use aws_sdk_dynamodb::{model::AttributeValue, Client};
-use uuid::Uuid;
 
-use crate::domain::public_types::ValidatedToDo;
+use crate::domain::entities::{ToDo, OwnerId, Title};
 use crate::domain::{
     entities::{Repository, ToDoId},
-    error_types::RepositoryError,
-    public_types::{CreatedToDo, ToDoItem},
+    error_types::RepositoryError
 };
 
 pub struct DynamoDbRepository<'a> {
@@ -25,50 +23,49 @@ impl DynamoDbRepository<'_> {
 
 #[async_trait]
 impl Repository for DynamoDbRepository<'_> {
-    async fn store_todo(&self, body: ValidatedToDo) -> Result<CreatedToDo, RepositoryError> {
+    async fn store_todo(&self, body: &ToDo) -> Result<(), RepositoryError> {
         tracing::info!("Storing record in DynamoDB");
-
-        let created_to_do = CreatedToDo {
-            title: body.title,
-            id: body.id,
-            is_complete: body.is_complete,
-            owner_id: body.owner_id,
-        };
 
         let res = self
             .client
             .put_item()
             .table_name(self.table_name)
-            .item("id", AttributeValue::S(created_to_do.id.to_string().into()))
+            .item("PK", AttributeValue::S(body.get_owner().to_string()))
+            .item("SK", AttributeValue::S(body.get_id().to_string()))
             .item(
-                "title",
-                AttributeValue::S(created_to_do.title.to_string().into()),
+                "id",
+                AttributeValue::S(body.get_id().into()),
             )
             .item(
-                "isComplete",
-                AttributeValue::S(created_to_do.is_complete.to_string()),
+                "title",
+                AttributeValue::S(body.get_title().into()),
+            )
+            .item(
+                "status",
+                AttributeValue::S(body.get_status().into()),
             )
             .item(
                 "ownerId",
-                AttributeValue::S(created_to_do.owner_id.to_string().into()),
+                AttributeValue::S(body.get_owner().into()),
             )
             .send()
             .await;
 
         match res {
-            Ok(_) => Ok(created_to_do),
+            Ok(_) => Ok(()),
             Err(e) => Err(RepositoryError::new(e.to_string())),
         }
     }
 
-    async fn get_todo(&self, id: &String) -> Result<ToDoItem, RepositoryError> {
+    async fn get_todo(&self, owner: &String, id: &String) -> Result<ToDo, RepositoryError> {
         tracing::info!("Retrieving record from DynamoDB");
 
         let res = self
             .client
             .get_item()
             .table_name(self.table_name)
-            .key("id", AttributeValue::S(id.to_string()))
+            .key("PK", AttributeValue::S(owner.to_string()))
+            .key("SK", AttributeValue::S(id.to_string()))
             .send()
             .await;
 
@@ -77,16 +74,10 @@ impl Repository for DynamoDbRepository<'_> {
                 let item = res.unwrap();
                 let attributes = item.item().unwrap().clone();
 
-                ToDoItem {
-                    id: attributes.get("id").unwrap().as_s().unwrap().clone(),
-                    title: attributes.get("title").unwrap().as_s().unwrap().clone(),
-                    is_complete: attributes
-                        .get("isComplete")
-                        .unwrap()
-                        .as_s()
-                        .unwrap()
-                        .clone(),
-                }
+                ToDo::new(Title::Title(attributes.get("title").unwrap().as_s().unwrap().clone()),
+                    OwnerId::OwnerId(attributes.get("ownerId").unwrap().as_s().unwrap().clone()),
+                    Some(attributes.get("status").unwrap().as_s().unwrap().clone()),
+                    Some(ToDoId::ToDoId(attributes.get("id").unwrap().as_s().unwrap().clone()))).unwrap()
             }),
             Err(e) => Err(RepositoryError::new(e.to_string())),
         }

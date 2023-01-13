@@ -1,5 +1,3 @@
-use std::borrow::Borrow;
-
 use aws_lambda_events::apigw::{ApiGatewayV2httpRequest, ApiGatewayV2httpResponse};
 use lambda_http::{
     http::{HeaderMap, HeaderValue},
@@ -10,7 +8,7 @@ use lambda_runtime::LambdaEvent;
 use crate::domain::{
     create_todo_service,
     entities::Repository,
-    public_types::{ToDoItem, UnvalidatedToDo},
+    public_types::{ToDoItem, CreateToDoCommand},
 };
 
 pub async fn create_todo_handler(
@@ -33,8 +31,8 @@ pub async fn create_todo_handler(
         });
     }
 
-    // Build an UnvalidatedToDo
-    let to_do_item = serde_json::from_str::<UnvalidatedToDo>(&body.unwrap()).unwrap();
+    // Deserialize the input command
+    let to_do_item = serde_json::from_str::<CreateToDoCommand>(&body.unwrap()).unwrap();
 
     // Use the service to create a new todo
     // From here we are in pure domain language
@@ -44,11 +42,7 @@ pub async fn create_todo_handler(
     Ok(ApiGatewayV2httpResponse {
         body: match &created_todo {
             Ok(val) => Some(Body::Text(
-                serde_json::to_string_pretty(&ToDoItem {
-                    id: val.id.to_string().into(),
-                    is_complete: val.is_complete.to_string(),
-                    title: val.title.to_string().into(),
-                })
+                serde_json::to_string_pretty(val)
                 .unwrap(),
             )),
             Err(err) => Some(Body::Text(format_error_response(err.to_string()))),
@@ -100,9 +94,8 @@ fn extract_request_body(request: LambdaEvent<ApiGatewayV2httpRequest>) -> Option
 #[cfg(test)]
 mod tests {
     use crate::application::create_todo_handler::create_todo_handler;
-    use crate::domain::entities::{IsComplete, OwnerId, Repository, Title, ToDoId};
+    use crate::domain::entities::{Repository, ToDo};
     use crate::domain::error_types::RepositoryError;
-    use crate::domain::public_types::{CreatedToDo, ToDoItem, ValidatedToDo};
     use async_trait::async_trait;
     use aws_lambda_events::apigw::ApiGatewayV2httpRequest;
     use http::{HeaderMap, HeaderValue};
@@ -116,26 +109,21 @@ mod tests {
 
     #[async_trait]
     impl Repository for MockRepository {
-        async fn store_todo(&self, _id: ValidatedToDo) -> Result<CreatedToDo, RepositoryError> {
+        async fn store_todo(&self, _: &ToDo) -> Result<(), RepositoryError> {
             if self.should_fail {
                 return Err(RepositoryError::new("Forced failure!".to_string()));
             } else {
-                Ok(CreatedToDo {
-                    id: ToDoId::ToDoId("test".to_string()),
-                    title: Title::Title("test".to_string()),
-                    is_complete: IsComplete::INCOMPLETE,
-                    owner_id: OwnerId::OwnerId("test".to_string()),
-                })
+                Ok(())
             }
         }
 
-        async fn get_todo(&self, _id: &String) -> Result<ToDoItem, RepositoryError> {
+        async fn get_todo(&self, _:&String, _: &String) -> Result<ToDo, RepositoryError> {
             return Err(RepositoryError::new("Forced failure!".to_string()));
         }
     }
 
     #[tokio::test]
-    async fn test_valid_request_should_return_success_response() {
+    async fn test_valid_request_should_return_success() {
         let client = MockRepository { should_fail: false };
 
         let request = build_request("test1".to_string(), Some("the title".to_string()));
@@ -152,7 +140,6 @@ mod tests {
 
         // Assert that the response is correct
         assert_eq!(response.status_code, 200);
-        assert_eq!(response.body.unwrap(), Body::Text("{\n  \"id\": \"test\",\n  \"title\": \"test\",\n  \"is_complete\": \"INCOMPLETE\"\n}".to_string()));
     }
 
     #[tokio::test]
@@ -175,7 +162,7 @@ mod tests {
         assert_eq!(response.status_code, 400);
         assert_eq!(
             response.body.unwrap(),
-            Body::Text("{\"message\": Validation error: Failure creating ToDo}".to_string())
+            Body::Text("{\"message\": Failure creating ToDo}".to_string())
         );
     }
 
@@ -223,7 +210,7 @@ mod tests {
         assert_eq!(response.status_code, 400);
         assert_eq!(
             response.body.unwrap(),
-            Body::Text("{\"message\": Validation error:  - Validation error: Must be between 1 and 50 chars}".to_string())
+            Body::Text("{\"message\":  Must be between 1 and 50 chars}".to_string())
         );
     }
 
@@ -247,7 +234,7 @@ mod tests {
         assert_eq!(response.status_code, 400);
         assert_eq!(
             response.body.unwrap(),
-            Body::Text("{\"message\": Validation error:  - Validation error: Must be between 1 and 50 chars}".to_string())
+            Body::Text("{\"message\":  Must be between 1 and 50 chars}".to_string())
         );
     }
 

@@ -1,26 +1,33 @@
 use crate::domain::{
-    entities::{Repository, ValidateToDo},
+    entities::{Repository},
     error_types::ValidationError,
-    public_types::{CreatedToDo, UnvalidatedToDo},
 };
 
-pub async fn create_to_do(
-    input: UnvalidatedToDo,
-    client: &dyn Repository,
-) -> Result<CreatedToDo, ValidationError> {
-    let validation_workflow = ValidateToDo::new(input);
+use super::{public_types::{CreateToDoCommand, ToDoItem}, entities::{ToDo, Title, OwnerId}};
 
-    let to_do = validation_workflow.validate();
+pub async fn create_to_do(
+    input: CreateToDoCommand,
+    client: &dyn Repository,
+) -> Result<ToDoItem, ValidationError> {
+    let to_do = ToDo::new(Title::Title(input.title), OwnerId::OwnerId(input.owner_id), Option::None, Option::None);
 
     match to_do {
         Ok(val) => {
-            let db_res = client.store_todo(val).await;
+            let db_res = client.store_todo(&val).await;
 
             match db_res {
-                Ok(res) => Ok(res),
+                Ok(_) => Ok(val.into_dto()),
                 Err(_) => Err(ValidationError::new("Failure creating ToDo".to_string())),
             }
         }
-        Err(e) => Err(e),
+        Err(e) => {
+            let mut error_string = String::from("");
+
+            for err in e {
+                error_string = format!("{} {}", error_string, err.to_string());
+            }
+
+            Err(ValidationError::new(error_string))
+        },
     }
 }
