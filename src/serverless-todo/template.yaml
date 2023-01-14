@@ -9,6 +9,10 @@ Description: >
 Globals:
   Function:
     Timeout: 3
+    Handler: bootstrap.is.the.handler
+    Runtime: provided.al2
+    Architectures:
+      - x86_64
 
 Resources:
   Table:
@@ -33,9 +37,6 @@ Resources:
     Properties:
       CodeUri: target/lambda/get_todo/
       Handler: bootstrap.is.the.handler
-      Runtime: provided.al2
-      Architectures:
-        - x86_64
       Events:
         RustApi:
           Type: HttpApi # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -49,14 +50,28 @@ Resources:
         - DynamoDBReadPolicy: # More info about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
             TableName: !Ref Table
 
+  ListToDosFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: target/lambda/list_todos/
+      Events:
+        RustApi:
+          Type: HttpApi # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /
+            Method: get
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Table
+      Policies:
+        - DynamoDBReadPolicy: # More info about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+            TableName: !Ref Table
+
   CreateToDoFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
       CodeUri: target/lambda/create_todo/
       Handler: bootstrap.is.the.handler
-      Runtime: provided.al2
-      Architectures:
-        - x86_64
       Events:
         RustApi:
           Type: HttpApi # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api

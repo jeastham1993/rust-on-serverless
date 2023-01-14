@@ -6,9 +6,9 @@ use lambda_http::{
 use lambda_runtime::LambdaEvent;
 
 use crate::domain::{
-    create_todo_service,
+    todo_service,
     entities::Repository,
-    public_types::{ToDoItem, CreateToDoCommand},
+    public_types::{CreateToDoCommand},
 };
 
 pub async fn create_todo_handler(
@@ -36,7 +36,7 @@ pub async fn create_todo_handler(
 
     // Use the service to create a new todo
     // From here we are in pure domain language
-    let created_todo = create_todo_service::create_to_do(to_do_item, client).await;
+    let created_todo = todo_service::create_to_do(to_do_item, client).await;
 
     // Convert the domain response back to a valid HTTP response
     Ok(ApiGatewayV2httpResponse {
@@ -118,6 +118,10 @@ mod tests {
         }
 
         async fn get_todo(&self, _:&String, _: &String) -> Result<ToDo, RepositoryError> {
+            return Err(RepositoryError::new("Forced failure!".to_string()));
+        }
+
+        async fn list_todos(&self, _:&String) -> Result<Vec<ToDo>, RepositoryError> {
             return Err(RepositoryError::new("Forced failure!".to_string()));
         }
     }

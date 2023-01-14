@@ -31,3 +31,25 @@ pub async fn create_to_do(
         },
     }
 }
+
+pub async fn list_todos(
+    owner: OwnerId,
+    client: &dyn Repository) -> Result<Vec<ToDoItem>, ()> {
+
+    let query_res = client
+        .list_todos(&owner.to_string())
+        .await;
+
+    match query_res {
+        Ok(todos) => {
+            let mut to_do_items: Vec<ToDoItem> = Vec::new();
+
+            for todo in todos {
+                to_do_items.push(todo.into_dto());
+            }
+
+            Ok(to_do_items)
+        },
+        Err(_) => Err(())
+    }
+}

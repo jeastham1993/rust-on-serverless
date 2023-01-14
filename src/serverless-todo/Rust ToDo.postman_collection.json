@@ -1,0 +1,114 @@
+{
+	"info": {
+		"_postman_id": "4fd07503-75a8-4dd4-a472-f133551283a3",
+		"name": "Rust ToDo",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "10755261"
+	},
+	"item": [
+		{
+			"name": "List",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Owner",
+						"value": "{{Owner}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{ApiRoot}}/",
+					"host": [
+						"{{ApiRoot}}"
+					],
+					"path": [
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GET",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Owner",
+						"value": "{{Owner}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{ApiRoot}}/5e3bbe3c-de01-47bc-9316-9098e7010902",
+					"host": [
+						"{{ApiRoot}}"
+					],
+					"path": [
+						"5e3bbe3c-de01-47bc-9316-9098e7010902"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"title\": \"A new todo\",\r\n    \"owner_id\": \"jameseastham\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{ApiRoot}}/",
+					"host": [
+						"{{ApiRoot}}"
+					],
+					"path": [
+						""
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "Owner",
+			"value": "jameseastham",
+			"type": "string"
+		},
+		{
+			"key": "ApiRoot",
+			"value": "https://kh2732k7hk.execute-api.eu-west-1.amazonaws.com",
+			"type": "string"
+		}
+	]
+}

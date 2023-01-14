@@ -82,4 +82,40 @@ impl Repository for DynamoDbRepository<'_> {
             Err(e) => Err(RepositoryError::new(e.to_string())),
         }
     }
+
+    async fn list_todos(&self, owner: &String) -> Result<Vec<ToDo>, RepositoryError> {
+        tracing::info!("Retrieving record from DynamoDB");
+
+        let res = self
+            .client
+            .query()
+            .table_name(self.table_name)
+            .key_condition_expression(
+                "PK = :hashKey",
+            )
+            .expression_attribute_values(
+                ":hashKey",
+                AttributeValue::S(owner.to_string()),
+            )
+            .send()
+            .await;
+
+        match res {
+            Ok(query_res) => Ok({
+
+                let mut items: Vec<ToDo> = Vec::new();
+
+                for item in query_res.items().unwrap() {
+                    items.push(
+                        ToDo::new(Title::Title(item.get("title").unwrap().as_s().unwrap().clone()),
+                        OwnerId::OwnerId(item.get("ownerId").unwrap().as_s().unwrap().clone()),
+                        Some(item.get("status").unwrap().as_s().unwrap().clone()),
+                        Some(ToDoId::ToDoId(item.get("id").unwrap().as_s().unwrap().clone()))).unwrap())
+                }
+
+                items
+            }),
+            Err(e) => Err(RepositoryError::new(e.to_string())),
+        }
+    }
 }

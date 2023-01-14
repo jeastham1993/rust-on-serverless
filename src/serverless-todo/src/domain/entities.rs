@@ -14,15 +14,15 @@ const VALIDATED_STATUS: &str = "VALIDATED";
 const INCOMPLETE_STATUS: &str = "INCOMPLETE";
 const COMPLETE_STATUS: &str = "COMPLETE";
 
+#[non_exhaustive]
 pub enum ToDo {
-    Unvalidated(DUnvalidatedToDo),
-    Validated(DValidatedToDo),
-    Incomplete(DIncompleteToDo),
-    Complete(DCompleteToDo),
+    Unvalidated(UnvalidatedToDo),
+    Validated(ValidatedToDo),
+    Incomplete(IncompleteToDo),
+    Complete(CompleteToDo),
 }
 
 impl ToDo {
-
     pub fn new(title: Title, owner_id: OwnerId, status: Option<String>, existing_id: Option<ToDoId>) -> Result<ToDo, Vec<ValidationError>> {
         let title_res = ToDo::check_title(&title);
         let owner_res = ToDo::check_owner_id(&owner_id);
@@ -51,14 +51,14 @@ impl ToDo {
         match status {
             Option::Some(status_val) => {
                 match status_val.as_str() {
-                    UNVALIDATED_STATUS => Ok(ToDo::Unvalidated(DUnvalidatedToDo { title: title, owner: owner_id })),
-                    VALIDATED_STATUS => Ok(ToDo::Validated(DValidatedToDo { to_do_id: existing_id.unwrap(), title: title, owner: owner_id })),
-                    INCOMPLETE_STATUS => Ok(ToDo::Incomplete(DIncompleteToDo { to_do_id: existing_id.unwrap(), title: title, owner: owner_id })),
-                    COMPLETE_STATUS => Ok(ToDo::Complete(DCompleteToDo { to_do_id: existing_id.unwrap(), title: title, owner: owner_id })),
-                    _ => Ok(ToDo::Unvalidated(DUnvalidatedToDo { title: title, owner: owner_id })),
+                    UNVALIDATED_STATUS => Ok(ToDo::Unvalidated(UnvalidatedToDo { title: title, owner: owner_id })),
+                    VALIDATED_STATUS => Ok(ToDo::Validated(ValidatedToDo { to_do_id: existing_id.unwrap(), title: title, owner: owner_id })),
+                    INCOMPLETE_STATUS => Ok(ToDo::Incomplete(IncompleteToDo { to_do_id: existing_id.unwrap(), title: title, owner: owner_id })),
+                    COMPLETE_STATUS => Ok(ToDo::Complete(CompleteToDo { to_do_id: existing_id.unwrap(), title: title, owner: owner_id })),
+                    _ => Ok(ToDo::Unvalidated(UnvalidatedToDo { title: title, owner: owner_id })),
                 }
             }
-            _ => Ok(ToDo::Validated(DValidatedToDo { to_do_id: id, title: title, owner: owner_id })),
+            _ => Ok(ToDo::Validated(ValidatedToDo { to_do_id: id, title: title, owner: owner_id })),
         }
     }
 
@@ -101,21 +101,21 @@ impl ToDo {
     // Forcing immutability. When the title of a ToDo needs to be updated a new ToDo is returned.
     fn update_title(self, new_title: String) -> Result<ToDo, ()> {
         let response = match &self {
-            ToDo::Unvalidated(unvalidated) => ToDo::Unvalidated(DUnvalidatedToDo {
+            ToDo::Unvalidated(unvalidated) => ToDo::Unvalidated(UnvalidatedToDo {
                 title: Title::Title(new_title),
                 owner: OwnerId::OwnerId(unvalidated.owner.to_string()),
             }),
-            ToDo::Validated(validated) => ToDo::Validated(DValidatedToDo {
+            ToDo::Validated(validated) => ToDo::Validated(ValidatedToDo {
                 to_do_id: ToDoId::ToDoId(validated.to_do_id.to_string()),
                 title: Title::Title(new_title),
                 owner: OwnerId::OwnerId(validated.owner.to_string()),
             }),
-            ToDo::Incomplete(incomplete) => ToDo::Incomplete(DIncompleteToDo {
+            ToDo::Incomplete(incomplete) => ToDo::Incomplete(IncompleteToDo {
                 to_do_id: ToDoId::ToDoId(incomplete.to_do_id.to_string()),
                 title: Title::Title(new_title),
                 owner: OwnerId::OwnerId(incomplete.owner.to_string()),
             }),
-            ToDo::Complete(complete) => ToDo::Complete(DCompleteToDo {
+            ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
                 to_do_id: ToDoId::ToDoId(complete.to_do_id.to_string()),
                 title: Title::Title(complete.title.to_string()),
                 owner: OwnerId::OwnerId(complete.owner.to_string()),
@@ -175,24 +175,28 @@ impl ToDo {
     }
 }
 
-pub struct DUnvalidatedToDo {
+#[non_exhaustive]
+pub struct UnvalidatedToDo {
     title: Title,
     owner: OwnerId,
 }
 
-pub struct DValidatedToDo {
+#[non_exhaustive]
+pub struct ValidatedToDo {
     to_do_id: ToDoId,
     title: Title,
     owner: OwnerId,
 }
 
-pub struct DIncompleteToDo {
+#[non_exhaustive]
+pub struct IncompleteToDo {
     to_do_id: ToDoId,
     title: Title,
     owner: OwnerId,
 }
 
-pub struct DCompleteToDo {
+#[non_exhaustive]
+pub struct CompleteToDo {
     to_do_id: ToDoId,
     title: Title,
     owner: OwnerId,
@@ -251,6 +255,8 @@ pub trait Repository {
     async fn store_todo(&self, body: &ToDo) -> Result<(), RepositoryError>;
 
     async fn get_todo(&self, owner: &String, id: &String) -> Result<ToDo, RepositoryError>;
+
+    async fn list_todos(&self, owner: &String) -> Result<Vec<ToDo>, RepositoryError>;
 }
 
 /// Unit tests
@@ -277,7 +283,7 @@ mod tests {
 
     #[test]
     fn update_title_for_incomplete_todo_should_change() {
-        let todo = ToDo::Incomplete(super::DIncompleteToDo {
+        let todo = ToDo::Incomplete(super::IncompleteToDo {
             to_do_id: ToDoId::ToDoId(String::from("hello")),
             title: Title::Title(String::from("hello")),
             owner: OwnerId::OwnerId(String::from("hello")),
@@ -294,7 +300,7 @@ mod tests {
 
     #[test]
     fn update_title_for_completed_todo_should_not_change() {
-        let todo = ToDo::Complete(super::DCompleteToDo {
+        let todo = ToDo::Complete(super::CompleteToDo {
             to_do_id: ToDoId::ToDoId(String::from("hello")),
             title: Title::Title(String::from("hello")),
             owner: OwnerId::OwnerId(String::from("hello")),

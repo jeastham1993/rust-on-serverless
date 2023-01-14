@@ -44,3 +44,9 @@ name = "get_todo"
 path = "src/bin/lambda/get_todo.rs"
 test = false
 required-features = ["lambda"]
+
+[[bin]]
+name = "list_todos"
+path = "src/bin/lambda/list_todos.rs"
+test = false
+required-features = ["lambda"]

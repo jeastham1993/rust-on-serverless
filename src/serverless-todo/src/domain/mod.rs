@@ -1,4 +1,4 @@
-pub mod create_todo_service;
+pub mod todo_service;
 #[cfg(feature = "lambda")]
 pub mod entities;
 pub mod error_types;
