@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use aws_sdk_dynamodb::{model::AttributeValue, Client};
+use chrono::{DateTime};
 
 use crate::domain::entities::{OwnerId, Title, ToDo};
 use crate::domain::{
@@ -36,17 +37,25 @@ impl Repository for DynamoDbRepository<'_> {
             .item("title", AttributeValue::S(body.get_title().into()))
             .item("status", AttributeValue::S(body.get_status().into()))
             .item("ownerId", AttributeValue::S(body.get_owner().into()))
+            .item(
+                "completedOn",
+                AttributeValue::S(body.get_completed_on().into()),
+            )
             .send()
             .await;
 
         match res {
             Ok(_) => Ok(()),
-            Err(e) => Err(RepositoryError::new(e.to_string())),
+            Err(e) => {
+                tracing::error!("{}", e.to_string());
+
+                Err(RepositoryError::new(e.to_string()))
+            },
         }
     }
 
     async fn get_todo(&self, owner: &String, id: &String) -> Result<ToDo, RepositoryError> {
-        tracing::info!("Retrieving record from DynamoDB");
+        tracing::info!("Retrieving record from DynamoDB: {owner} {id}");
 
         let res = self
             .client
@@ -58,21 +67,30 @@ impl Repository for DynamoDbRepository<'_> {
             .await;
 
         match res {
-            Ok(_) => Ok({
-                let item = res.unwrap();
+            Ok(item) => Ok({
                 let attributes = item.item().unwrap().clone();
 
                 ToDo::parse(
                     Title::new(attributes.get("title").unwrap().as_s().unwrap().clone()).unwrap(),
-                    OwnerId::new(attributes.get("ownerId").unwrap().as_s().unwrap().clone()).unwrap(),
+                    OwnerId::new(attributes.get("ownerId").unwrap().as_s().unwrap().clone())
+                        .unwrap(),
                     Some(attributes.get("status").unwrap().as_s().unwrap().clone()),
-                    Some(ToDoId::parse(
-                        attributes.get("id").unwrap().as_s().unwrap().clone(),
-                    ).unwrap()),
+                    Some(
+                        ToDoId::parse(attributes.get("id").unwrap().as_s().unwrap().clone())
+                            .unwrap(),
+                    ),
+                    match attributes.get("completedOn") {
+                        Option::None => Option::None,
+                        Some(val) => {
+                            Some(DateTime::parse_from_rfc3339(val.as_s().unwrap()).unwrap())
+                        }
+                    },
                 )
                 .unwrap()
             }),
-            Err(e) => Err(RepositoryError::new(e.to_string())),
+            Err(e) => {
+                Err(RepositoryError::new(e.into_service_error().message().unwrap().to_string()))
+            },
         }
     }
 
@@ -96,11 +114,19 @@ impl Repository for DynamoDbRepository<'_> {
                     items.push(
                         ToDo::parse(
                             Title::new(item.get("title").unwrap().as_s().unwrap().clone()).unwrap(),
-                            OwnerId::new(item.get("ownerId").unwrap().as_s().unwrap().clone()).unwrap(),
+                            OwnerId::new(item.get("ownerId").unwrap().as_s().unwrap().clone())
+                                .unwrap(),
                             Some(item.get("status").unwrap().as_s().unwrap().clone()),
-                            Some(ToDoId::parse(
-                                item.get("id").unwrap().as_s().unwrap().clone(),
-                            ).unwrap()),
+                            Some(
+                                ToDoId::parse(item.get("id").unwrap().as_s().unwrap().clone())
+                                    .unwrap(),
+                            ),
+                            match item.get("completedOn") {
+                                Option::None => Option::None,
+                                Some(val) => {
+                                    Some(DateTime::parse_from_rfc3339(val.as_s().unwrap()).unwrap())
+                                }
+                            },
                         )
                         .unwrap(),
                     )

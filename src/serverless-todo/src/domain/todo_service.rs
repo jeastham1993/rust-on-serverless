@@ -1,10 +1,8 @@
-use std::any;
-
 use crate::domain::{entities::Repository, error_types::ValidationError};
 
 use super::{
     entities::{OwnerId, Title, ToDo, ToDoId},
-    public_types::{CreateToDoCommand, ToDoItem, UpdateToDoCommand},
+    public_types::{CreateToDoCommand, ToDoItem, UpdateToDoCommand}, error_types::ServiceError,
 };
 
 pub async fn create_to_do(
@@ -21,7 +19,6 @@ pub async fn create_to_do(
 
         return Err(combine_errors(errors));
     }
-
 
     let to_do = ToDo::new(parsed_title.unwrap(), parsed_ownerid.unwrap());
 
@@ -65,11 +62,11 @@ pub async fn list_todos(owner: OwnerId, client: &dyn Repository) -> Result<Vec<T
 
 pub async fn get_todos(
     owner: OwnerId,
-    toDoId: ToDoId,
+    to_do_id: ToDoId,
     client: &dyn Repository,
 ) -> Result<ToDoItem, ()> {
     let query_res = client
-        .get_todo(&owner.to_string(), &toDoId.to_string())
+        .get_todo(&owner.to_string(), &to_do_id.to_string())
         .await;
 
     match query_res {
@@ -81,32 +78,43 @@ pub async fn get_todos(
 pub async fn update_todo(
     update_command: UpdateToDoCommand,
     client: &dyn Repository,
-) -> Result<ToDoItem, ()> {
+) -> Result<ToDoItem, ServiceError> {
     let query_res = client
-        .get_todo(&update_command.owner_id, &update_command.title)
+        .get_todo(&update_command.owner_id, &update_command.to_do_id)
         .await;
 
     match query_res {
         Ok(todo) => {
-            let updated_status = todo.set_completed(update_command.set_as_complete);
+            let updated_status = match update_command.set_as_complete {
+                true => todo.set_completed(),
+                false => todo
+            };
 
-            match updated_status {
-                Ok(status_res) => {
-                    let updated_todo = status_res.update_title(update_command.title);
+            let updated_todo = updated_status.update_title(update_command.title);
 
-                    match updated_todo {
-                        Ok(res) => {
-                            client.store_todo(&res).await;
+            match updated_todo {
+                Ok(res) => {
+                    let database_result = client.store_todo(&res).await;
 
-                            Ok(res.into_dto())
-                        }
-                        Err(_) => Err(()),
+                    match database_result {
+                        Ok(_) => Ok(res.into_dto()),
+                        Err(e) => {
+                            tracing::error!("{}", e.to_string());
+
+                            Err(ServiceError::new(e.to_string()))
+                        },
                     }
+
+                    
                 }
-                Err(_) => Err(()),
+                Err(e) => Err(ServiceError::new(e.to_string())),
             }
         }
-        Err(_) => Err(()),
+        Err(e) => {
+            tracing::error!("{}", e.to_string());
+
+            Err(ServiceError::new(String::from("Record not found")))
+        },
     }
 }
 
@@ -114,10 +122,14 @@ fn combine_errors(err: Vec<Option<ValidationError>>) -> ValidationError {
     let mut error_builder = String::from("");
 
     for ele in err {
-        error_builder = format!("{} {}", error_builder, match ele {
-            Option::None => String::from(""),
-            Some(val) => val.to_string()
-        })
+        error_builder = format!(
+            "{} {}",
+            error_builder,
+            match ele {
+                Option::None => String::from(""),
+                Some(val) => val.to_string(),
+            }
+        )
     }
 
     ValidationError::new(error_builder)
@@ -129,6 +141,7 @@ fn combine_errors(err: Vec<Option<ValidationError>>) -> ValidationError {
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
+    use chrono::{DateTime, Utc};
 
     use crate::domain::{
         entities::{OwnerId, Repository, Title, ToDo, ToDoId},
@@ -139,7 +152,7 @@ mod tests {
 
     struct MockRepository {
         should_fail: bool,
-        to_do_status_to_return: String,
+        to_do_status_to_return: String
     }
 
     #[async_trait]
@@ -162,6 +175,10 @@ mod tests {
                 OwnerId::new("owner".to_string()).unwrap(),
                 Some(self.to_do_status_to_return.to_string()),
                 Some(ToDoId::parse("id".to_string()).unwrap()),
+                match self.to_do_status_to_return.as_str() {
+                    "COMPLETE" => Some(DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap()),
+                    _ => Option::None
+                }
             )
             .unwrap())
         }
@@ -179,6 +196,10 @@ mod tests {
                     OwnerId::new("owner".to_string()).unwrap(),
                     Some(self.to_do_status_to_return.to_string()),
                     Some(ToDoId::parse("id".to_string()).unwrap()),
+                    match self.to_do_status_to_return.as_str() {
+                        "COMPLETE" => Some(DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap()),
+                        _ => Option::None
+                    }
                 )
                 .unwrap(),
             );
@@ -194,7 +215,8 @@ mod tests {
             to_do_status_to_return: "INCOMPLETE".to_string(),
         };
 
-        let to_dos = todo_service::list_todos(OwnerId::new("owner".to_string()).unwrap(), &client).await;
+        let to_dos =
+            todo_service::list_todos(OwnerId::new("owner".to_string()).unwrap(), &client).await;
 
         assert_eq!(to_dos.is_err(), false);
         assert_eq!(to_dos.unwrap().len(), 1);
@@ -225,7 +247,8 @@ mod tests {
             to_do_status_to_return: "INCOMPLETE".to_string(),
         };
 
-        let to_dos = todo_service::list_todos(OwnerId::new("owner".to_string()).unwrap(), &client).await;
+        let to_dos =
+            todo_service::list_todos(OwnerId::new("owner".to_string()).unwrap(), &client).await;
 
         assert_eq!(to_dos.is_err(), true);
     }
@@ -241,7 +264,7 @@ mod tests {
             UpdateToDoCommand {
                 owner_id: "jameseastham".to_string(),
                 title: "newtitle".to_string(),
-                toDoId: "12345".to_string(),
+                to_do_id: "12345".to_string(),
                 set_as_complete: false,
             },
             &client,
@@ -263,7 +286,7 @@ mod tests {
             UpdateToDoCommand {
                 owner_id: "jameseastham".to_string(),
                 title: "newtitle".to_string(),
-                toDoId: "12345".to_string(),
+                to_do_id: "12345".to_string(),
                 set_as_complete: true,
             },
             &client,
@@ -285,7 +308,7 @@ mod tests {
             UpdateToDoCommand {
                 owner_id: "jameseastham".to_string(),
                 title: "newtitle".to_string(),
-                toDoId: "12345".to_string(),
+                to_do_id: "12345".to_string(),
                 set_as_complete: false,
             },
             &client,
@@ -307,7 +330,7 @@ mod tests {
             UpdateToDoCommand {
                 owner_id: "jameseastham".to_string(),
                 title: "newtitle".to_string(),
-                toDoId: "12345".to_string(),
+                to_do_id: "12345".to_string(),
                 set_as_complete: true,
             },
             &client,

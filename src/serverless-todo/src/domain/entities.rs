@@ -1,7 +1,7 @@
-use std::fmt;
-
 use async_trait::async_trait;
+use chrono::{DateTime, FixedOffset, Utc};
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use uuid::Uuid;
 
 use super::{
@@ -12,13 +12,18 @@ use super::{
 const INCOMPLETE_STATUS: &str = "INCOMPLETE";
 const COMPLETE_STATUS: &str = "COMPLETE";
 
+/// Represents a ToDo list item, a ToDo can be incomplete or complete.
 #[non_exhaustive]
 pub enum ToDo {
+    /// Represents an incomplete ToDo item
     Incomplete(IncompleteToDo),
+    /// Represents a complete ToDo item
     Complete(CompleteToDo),
 }
 
 impl ToDo {
+    /// Create a new ToDo item from a title and owner. 
+    /// Returns a new IncompleteToDo
     pub fn new(title: Title, owner_id: OwnerId) -> Result<ToDo, Vec<ValidationError>> {
         let title_res = ToDo::check_title(&title);
         let owner_res = ToDo::check_owner_id(&owner_id);
@@ -48,17 +53,20 @@ impl ToDo {
         }))
     }
 
+    /// Parse a ToDo from a set of existing values
     pub fn parse(
         title: Title,
         owner_id: OwnerId,
         status: Option<String>,
         existing_id: Option<ToDoId>,
+        completed_on: Option<DateTime<FixedOffset>>,
     ) -> Result<ToDo, Vec<ValidationError>> {
+        let mut errors: Vec<ValidationError> = Vec::new();
+
         let title_res = ToDo::check_title(&title);
         let owner_res = ToDo::check_owner_id(&owner_id);
 
         if title_res.is_err() || owner_res.is_err() {
-            let mut errors: Vec<ValidationError> = Vec::new();
             let title_err = title_res.err();
             let owner_err = owner_res.err();
 
@@ -75,27 +83,40 @@ impl ToDo {
 
         let id = match &existing_id {
             Option::None => ToDoId::new(),
-            Option::Some(val) => ToDoId::parse(val.to_string()).unwrap()
+            Option::Some(val) => ToDoId::parse(val.to_string()).unwrap(),
         };
 
         match status {
-            Option::Some(status_val) => match status_val.as_str() {
-                INCOMPLETE_STATUS => Ok(ToDo::Incomplete(IncompleteToDo {
-                    to_do_id: existing_id.unwrap(),
-                    title: title,
-                    owner: owner_id,
-                })),
-                COMPLETE_STATUS => Ok(ToDo::Complete(CompleteToDo {
-                    to_do_id: existing_id.unwrap(),
-                    title: title,
-                    owner: owner_id,
-                })),
-                _ => Ok(ToDo::Incomplete(IncompleteToDo {
-                    to_do_id: id,
-                    title: title,
-                    owner: owner_id,
-                })),
-            },
+            Option::Some(status_val) => {
+                match status_val.as_str() {
+                    INCOMPLETE_STATUS => Ok(ToDo::Incomplete(IncompleteToDo {
+                        to_do_id: existing_id.unwrap(),
+                        title: title,
+                        owner: owner_id,
+                    })),
+                    COMPLETE_STATUS => {
+                        let parsed_completed_on = match completed_on {
+                            Option::None => {
+                                errors.push(ValidationError::new("Is status is completed a valid completed on date must be passed".to_string()));
+                                return Err(errors);
+                            }
+                            Some(val) => val,
+                        };
+
+                        Ok(ToDo::Complete(CompleteToDo {
+                            to_do_id: existing_id.unwrap(),
+                            title: title,
+                            owner: owner_id,
+                            completed_on: parsed_completed_on,
+                        }))
+                    }
+                    _ => Ok(ToDo::Incomplete(IncompleteToDo {
+                        to_do_id: id,
+                        title: title,
+                        owner: owner_id,
+                    })),
+                }
+            }
             _ => Ok(ToDo::Incomplete(IncompleteToDo {
                 to_do_id: id,
                 title: title,
@@ -104,6 +125,7 @@ impl ToDo {
         }
     }
 
+    /// GET the title of the ToDo
     pub fn get_title(&self) -> String {
         match &self {
             ToDo::Incomplete(incomplete) => incomplete.title.to_string(),
@@ -111,6 +133,15 @@ impl ToDo {
         }
     }
 
+    /// GET the date the ToDo was completed. Returns an empty string if incomplete.
+    pub fn get_completed_on(&self) -> String {
+        match &self {
+            ToDo::Incomplete(_) => "".to_string(),
+            ToDo::Complete(complete) => complete.completed_on.to_rfc3339(),
+        }
+    }
+
+    /// GET the owner of the ToDo
     pub fn get_owner(&self) -> String {
         match &self {
             ToDo::Incomplete(incomplete) => incomplete.owner.to_string(),
@@ -118,6 +149,7 @@ impl ToDo {
         }
     }
 
+    /// GET the ID of the ToDo
     pub fn get_id(&self) -> String {
         match &self {
             ToDo::Incomplete(incomplete) => incomplete.to_do_id.to_string(),
@@ -125,6 +157,7 @@ impl ToDo {
         }
     }
 
+    /// GET the status of the ToDo
     pub fn get_status(&self) -> String {
         match &self {
             ToDo::Incomplete(_) => String::from(INCOMPLETE_STATUS),
@@ -132,75 +165,74 @@ impl ToDo {
         }
     }
 
-    // Forcing immutability. When the title of a ToDo needs to be updated a new ToDo is returned.
-    pub fn update_title(self, new_title: String) -> Result<ToDo, ()> {
+    /// Update the title of the existing ToDo.
+    /// If the ToDo is already completed then the title cannot be updated.
+    /// Returns a new ToDo
+    pub fn update_title(self, new_title: String) -> Result<ToDo, ValidationError> {
+        let new_title_value = Title::new(new_title);
+
+        if new_title_value.is_err() {
+            return Err(new_title_value.err().unwrap());
+        }
+
         let response = match &self {
             ToDo::Incomplete(incomplete) => ToDo::Incomplete(IncompleteToDo {
                 to_do_id: incomplete.to_do_id.clone(),
-                title: Title::new(new_title).unwrap(),
+                title: new_title_value.unwrap(),
                 owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
             }),
             ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
                 to_do_id: complete.to_do_id.clone(),
                 title: Title::new(complete.title.to_string()).unwrap(),
                 owner: OwnerId::new(complete.owner.to_string()).unwrap(),
+                completed_on: complete.completed_on,
             }),
         };
 
         Ok(response)
     }
 
-    pub fn set_completed(self, is_complete: bool) -> Result<ToDo, ()> {
-        let response = match is_complete {
-            true => match &self {
-                ToDo::Incomplete(incomplete) => ToDo::Complete(CompleteToDo {
-                    to_do_id: incomplete.to_do_id.clone(),
-                    title: Title::new(incomplete.title.to_string()).unwrap(),
-                    owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
-                }),
-                ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
-                    to_do_id: complete.to_do_id.clone(),
-                    title: Title::new(complete.title.to_string()).unwrap(),
-                    owner: OwnerId::new(complete.owner.to_string()).unwrap(),
-                }),
-            },
-            false => match &self {
-                ToDo::Incomplete(incomplete) => ToDo::Incomplete(IncompleteToDo {
-                    to_do_id: incomplete.to_do_id.clone(),
-                    title: Title::new(incomplete.title.to_string()).unwrap(),
-                    owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
-                }),
-                ToDo::Complete(complete) => ToDo::Incomplete(IncompleteToDo {
-                    to_do_id: complete.to_do_id.clone(),
-                    title: Title::new(complete.title.to_string()).unwrap(),
-                    owner: OwnerId::new(complete.owner.to_string()).unwrap(),
-                }),
-            },
-        };
-
-        Ok(response)
+    /// Set the ToDo as completed
+    pub fn set_completed(self) -> ToDo {
+        match &self {
+            ToDo::Incomplete(incomplete) => ToDo::Complete(CompleteToDo {
+                to_do_id: incomplete.to_do_id.clone(),
+                title: Title::new(incomplete.title.to_string()).unwrap(),
+                owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
+                completed_on: DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap(),
+            }),
+            ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
+                to_do_id: complete.to_do_id.clone(),
+                title: Title::new(complete.title.to_string()).unwrap(),
+                owner: OwnerId::new(complete.owner.to_string()).unwrap(),
+                completed_on: complete.completed_on,
+            }),
+        }
     }
 
+    /// Convert the ToDo into a ToDoItem Data Transfer Object
     pub fn into_dto(self) -> ToDoItem {
         match &self {
             ToDo::Incomplete(incomplete) => ToDoItem {
                 id: incomplete.to_do_id.to_string(),
                 is_complete: false,
                 title: incomplete.title.to_string(),
+                completed_on: String::from("")
             },
             ToDo::Complete(complete) => ToDoItem {
                 id: complete.to_do_id.to_string(),
                 is_complete: true,
                 title: complete.title.to_string(),
+                completed_on: complete.completed_on.to_rfc3339()
             },
         }
     }
 
     fn check_title(input: &Title) -> Result<(), ValidationError> {
-        println!("Checking title: '{}'", input.to_string());
+        tracing::info!("Checking title: '{}'", input.to_string());
 
         if input.to_string().len() <= 0 || input.to_string().len() > 50 {
-            println!("Title is invalid");
+            tracing::info!("Title is invalid");
 
             return Err(ValidationError::new(
                 "Must be between 1 and 50 chars".to_string(),
@@ -221,6 +253,7 @@ impl ToDo {
     }
 }
 
+/// Represents the structure of an incomplete ToDo
 #[non_exhaustive]
 pub struct IncompleteToDo {
     to_do_id: ToDoId,
@@ -228,16 +261,18 @@ pub struct IncompleteToDo {
     owner: OwnerId,
 }
 
+/// Represents the structure of a complete ToDo item
 #[non_exhaustive]
 pub struct CompleteToDo {
     to_do_id: ToDoId,
     title: Title,
     owner: OwnerId,
+    completed_on: DateTime<FixedOffset>,
 }
 
 #[derive(Clone)]
 pub struct ToDoId {
-    value: String
+    value: String,
 }
 
 impl ToDoId {
@@ -247,7 +282,7 @@ impl ToDoId {
 
     pub fn parse(existing_id: String) -> Result<ToDoId, ValidationError> {
         if existing_id.to_string().len() <= 0 || existing_id.to_string().len() > 50 {
-            println!("Title is invalid");
+            tracing::info!("Title is invalid");
 
             return Err(ValidationError::new(
                 "Must be between 1 and 50 chars".to_string(),
@@ -255,7 +290,7 @@ impl ToDoId {
         }
 
         Ok(ToDoId {
-            value: existing_id.to_string()
+            value: existing_id.to_string(),
         })
     }
 
@@ -266,13 +301,13 @@ impl ToDoId {
 
 #[derive(Clone)]
 pub struct Title {
-    value: String
+    value: String,
 }
 
 impl Title {
     pub fn new(title: String) -> Result<Title, ValidationError> {
         if title.to_string().len() <= 0 || title.to_string().len() > 50 {
-            println!("Title is invalid");
+            tracing::info!("Title is invalid");
 
             return Err(ValidationError::new(
                 "Must be between 1 and 50 chars".to_string(),
@@ -280,7 +315,7 @@ impl Title {
         }
 
         Ok(Title {
-            value: title.to_string()
+            value: title.to_string(),
         })
     }
 
@@ -291,13 +326,13 @@ impl Title {
 
 #[derive(Clone)]
 pub struct OwnerId {
-    value: String
+    value: String,
 }
 
 impl OwnerId {
     pub fn new(owner_id: String) -> Result<OwnerId, ValidationError> {
         if owner_id.to_string().len() <= 0 {
-            println!("Title is invalid");
+            tracing::info!("Title is invalid");
 
             return Err(ValidationError::new(
                 "Must be between 1 and 50 chars".to_string(),
@@ -305,7 +340,7 @@ impl OwnerId {
         }
 
         Ok(OwnerId {
-            value: owner_id.to_string()
+            value: owner_id.to_string(),
         })
     }
 
@@ -340,6 +375,8 @@ pub trait Repository {
 /// These tests are run using the `cargo test` command.
 #[cfg(test)]
 mod tests {
+    use chrono::{DateTime, Utc};
+
     use crate::domain::entities::{OwnerId, Title, ToDo};
 
     use super::ToDoId;
@@ -379,12 +416,51 @@ mod tests {
             to_do_id: ToDoId::parse(String::from("hello")).unwrap(),
             title: Title::new(String::from("hello")).unwrap(),
             owner: OwnerId::new(String::from("hello")).unwrap(),
+            completed_on: DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap(),
         });
 
         let updated_todo = todo.update_title(String::from("my new title"));
 
         if let ToDo::Complete(completed) = updated_todo.unwrap() {
             assert_eq!(completed.title.to_string(), String::from("hello"))
+        } else {
+            panic!("ToDo update method did not return the expected type")
+        }
+    }
+
+    #[test]
+    fn update_status_for_incomplete_todo_should_change() {
+        let todo = ToDo::Incomplete(super::IncompleteToDo {
+            to_do_id: ToDoId::parse(String::from("hello")).unwrap(),
+            title: Title::new(String::from("hello")).unwrap(),
+            owner: OwnerId::new(String::from("hello")).unwrap(),
+        });
+
+        let updated_todo = todo.set_completed();
+
+        if let ToDo::Complete(completed) = updated_todo {
+            assert_eq!(completed.title.to_string(), String::from("hello"));
+        } else {
+            panic!("ToDo update method did not return the expected type")
+        }
+    }
+
+    #[test]
+    fn update_status_for_completed_todo_should_not_change() {
+        let date = DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap();
+
+        let todo = ToDo::Complete(super::CompleteToDo {
+            to_do_id: ToDoId::parse(String::from("hello")).unwrap(),
+            title: Title::new(String::from("hello")).unwrap(),
+            owner: OwnerId::new(String::from("hello")).unwrap(),
+            completed_on: date,
+        });
+
+        let updated_todo = todo.set_completed();
+
+        if let ToDo::Complete(completed) = updated_todo {
+            assert_eq!(completed.title.to_string(), String::from("hello"));
+            assert_eq!(completed.completed_on, date);
         } else {
             panic!("ToDo update method did not return the expected type")
         }

@@ -72,7 +72,7 @@ fn extract_request_body(request: LambdaEvent<ApiGatewayV2httpRequest>) -> Option
         }
     };
 
-    println!("body: {}", body);
+    tracing::info!("body: {}", body);
 
     if body.len() == 0 {
         return Option::None;
