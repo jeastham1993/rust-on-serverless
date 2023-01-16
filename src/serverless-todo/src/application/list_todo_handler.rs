@@ -5,7 +5,10 @@ use lambda_http::{
 };
 use lambda_runtime::LambdaEvent;
 
-use crate::domain::{entities::{Repository, OwnerId}, todo_service};
+use crate::domain::{
+    entities::{OwnerId, Repository},
+    todo_service,
+};
 
 pub async fn list_todo_handler(
     client: &dyn Repository,
@@ -16,11 +19,10 @@ pub async fn list_todo_handler(
     // Temporarily pull owner from header before implementing authentication/authorization
     let owner = match request.payload.headers.get("Owner") {
         None => "".to_string(),
-        Some(val) => val.to_str().unwrap().to_string()
+        Some(val) => val.to_str().unwrap().to_string(),
     };
 
-    let res = todo_service::list_todos(OwnerId::OwnerId(owner), client)
-        .await;
+    let res = todo_service::list_todos(OwnerId::new(owner).unwrap(), client).await;
 
     // Return a response to the end-user
     match res {

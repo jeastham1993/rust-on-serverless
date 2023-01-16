@@ -48,7 +48,7 @@ pub async fn get_todo_handler(
     // Temporarily pull owner from header before implementing authentication/authorization
     let owner = match request.payload.headers.get("Owner") {
         None => "".to_string(),
-        Some(val) => val.to_str().unwrap().to_string()
+        Some(val) => val.to_str().unwrap().to_string(),
     };
 
     let res = client.get_todo(&owner, id).await;
@@ -56,7 +56,9 @@ pub async fn get_todo_handler(
     // Return a response to the end-user
     match res {
         Ok(_) => Ok(ApiGatewayV2httpResponse {
-            body: Some(Body::Text(serde_json::to_string(&res.unwrap().into_dto()).unwrap())),
+            body: Some(Body::Text(
+                serde_json::to_string(&res.unwrap().into_dto()).unwrap(),
+            )),
             status_code: 200,
             headers: default_headers(),
             ..Default::default()

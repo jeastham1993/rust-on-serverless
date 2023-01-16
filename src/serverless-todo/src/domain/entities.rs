@@ -1,4 +1,4 @@
-use std::{fmt};
+use std::fmt;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -6,24 +6,20 @@ use uuid::Uuid;
 
 use super::{
     error_types::{RepositoryError, ValidationError},
-    public_types::{ToDoItem},
+    public_types::ToDoItem,
 };
 
-const UNVALIDATED_STATUS: &str = "UNVALIDATED";
-const VALIDATED_STATUS: &str = "VALIDATED";
 const INCOMPLETE_STATUS: &str = "INCOMPLETE";
 const COMPLETE_STATUS: &str = "COMPLETE";
 
 #[non_exhaustive]
 pub enum ToDo {
-    Unvalidated(UnvalidatedToDo),
-    Validated(ValidatedToDo),
     Incomplete(IncompleteToDo),
     Complete(CompleteToDo),
 }
 
 impl ToDo {
-    pub fn new(title: Title, owner_id: OwnerId, status: Option<String>, existing_id: Option<ToDoId>) -> Result<ToDo, Vec<ValidationError>> {
+    pub fn new(title: Title, owner_id: OwnerId) -> Result<ToDo, Vec<ValidationError>> {
         let title_res = ToDo::check_title(&title);
         let owner_res = ToDo::check_owner_id(&owner_id);
 
@@ -42,30 +38,74 @@ impl ToDo {
 
             return Err(errors);
         }
-        
+
+        let id = ToDoId::new();
+
+        Ok(ToDo::Incomplete(IncompleteToDo {
+            to_do_id: id,
+            title: title,
+            owner: owner_id,
+        }))
+    }
+
+    pub fn parse(
+        title: Title,
+        owner_id: OwnerId,
+        status: Option<String>,
+        existing_id: Option<ToDoId>,
+    ) -> Result<ToDo, Vec<ValidationError>> {
+        let title_res = ToDo::check_title(&title);
+        let owner_res = ToDo::check_owner_id(&owner_id);
+
+        if title_res.is_err() || owner_res.is_err() {
+            let mut errors: Vec<ValidationError> = Vec::new();
+            let title_err = title_res.err();
+            let owner_err = owner_res.err();
+
+            if title_err.is_some() {
+                errors.push(title_err.unwrap());
+            }
+
+            if owner_err.is_some() {
+                errors.push(owner_err.unwrap());
+            }
+
+            return Err(errors);
+        }
+
         let id = match &existing_id {
-            Option::None => ToDoId::ToDoId(Uuid::new_v4().to_string()),
-            Option::Some(val) => ToDoId::ToDoId(val.to_string())
+            Option::None => ToDoId::new(),
+            Option::Some(val) => ToDoId::parse(val.to_string()).unwrap()
         };
 
         match status {
-            Option::Some(status_val) => {
-                match status_val.as_str() {
-                    UNVALIDATED_STATUS => Ok(ToDo::Unvalidated(UnvalidatedToDo { title: title, owner: owner_id })),
-                    VALIDATED_STATUS => Ok(ToDo::Validated(ValidatedToDo { to_do_id: existing_id.unwrap(), title: title, owner: owner_id })),
-                    INCOMPLETE_STATUS => Ok(ToDo::Incomplete(IncompleteToDo { to_do_id: existing_id.unwrap(), title: title, owner: owner_id })),
-                    COMPLETE_STATUS => Ok(ToDo::Complete(CompleteToDo { to_do_id: existing_id.unwrap(), title: title, owner: owner_id })),
-                    _ => Ok(ToDo::Unvalidated(UnvalidatedToDo { title: title, owner: owner_id })),
-                }
-            }
-            _ => Ok(ToDo::Validated(ValidatedToDo { to_do_id: id, title: title, owner: owner_id })),
+            Option::Some(status_val) => match status_val.as_str() {
+                INCOMPLETE_STATUS => Ok(ToDo::Incomplete(IncompleteToDo {
+                    to_do_id: existing_id.unwrap(),
+                    title: title,
+                    owner: owner_id,
+                })),
+                COMPLETE_STATUS => Ok(ToDo::Complete(CompleteToDo {
+                    to_do_id: existing_id.unwrap(),
+                    title: title,
+                    owner: owner_id,
+                })),
+                _ => Ok(ToDo::Incomplete(IncompleteToDo {
+                    to_do_id: id,
+                    title: title,
+                    owner: owner_id,
+                })),
+            },
+            _ => Ok(ToDo::Incomplete(IncompleteToDo {
+                to_do_id: id,
+                title: title,
+                owner: owner_id,
+            })),
         }
     }
 
     pub fn get_title(&self) -> String {
         match &self {
-            ToDo::Unvalidated(unvalidated) => unvalidated.title.to_string(),
-            ToDo::Validated(validated) => validated.title.to_string(),
             ToDo::Incomplete(incomplete) => incomplete.title.to_string(),
             ToDo::Complete(complete) => complete.title.to_string(),
         }
@@ -73,8 +113,6 @@ impl ToDo {
 
     pub fn get_owner(&self) -> String {
         match &self {
-            ToDo::Unvalidated(unvalidated) => unvalidated.owner.to_string(),
-            ToDo::Validated(validated) => validated.owner.to_string(),
             ToDo::Incomplete(incomplete) => incomplete.owner.to_string(),
             ToDo::Complete(complete) => complete.owner.to_string(),
         }
@@ -82,8 +120,6 @@ impl ToDo {
 
     pub fn get_id(&self) -> String {
         match &self {
-            ToDo::Unvalidated(_) => String::from(""),
-            ToDo::Validated(validated) => validated.to_do_id.to_string(),
             ToDo::Incomplete(incomplete) => incomplete.to_do_id.to_string(),
             ToDo::Complete(complete) => complete.to_do_id.to_string(),
         }
@@ -91,8 +127,6 @@ impl ToDo {
 
     pub fn get_status(&self) -> String {
         match &self {
-            ToDo::Unvalidated(_) => String::from(UNVALIDATED_STATUS),
-            ToDo::Validated(_) => String::from(VALIDATED_STATUS),
             ToDo::Incomplete(_) => String::from(INCOMPLETE_STATUS),
             ToDo::Complete(_) => String::from(COMPLETE_STATUS),
         }
@@ -101,24 +135,15 @@ impl ToDo {
     // Forcing immutability. When the title of a ToDo needs to be updated a new ToDo is returned.
     pub fn update_title(self, new_title: String) -> Result<ToDo, ()> {
         let response = match &self {
-            ToDo::Unvalidated(unvalidated) => ToDo::Unvalidated(UnvalidatedToDo {
-                title: Title::Title(new_title),
-                owner: OwnerId::OwnerId(unvalidated.owner.to_string()),
-            }),
-            ToDo::Validated(validated) => ToDo::Validated(ValidatedToDo {
-                to_do_id: ToDoId::ToDoId(validated.to_do_id.to_string()),
-                title: Title::Title(new_title),
-                owner: OwnerId::OwnerId(validated.owner.to_string()),
-            }),
             ToDo::Incomplete(incomplete) => ToDo::Incomplete(IncompleteToDo {
-                to_do_id: ToDoId::ToDoId(incomplete.to_do_id.to_string()),
-                title: Title::Title(new_title),
-                owner: OwnerId::OwnerId(incomplete.owner.to_string()),
+                to_do_id: incomplete.to_do_id.clone(),
+                title: Title::new(new_title).unwrap(),
+                owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
             }),
             ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
-                to_do_id: ToDoId::ToDoId(complete.to_do_id.to_string()),
-                title: Title::Title(complete.title.to_string()),
-                owner: OwnerId::OwnerId(complete.owner.to_string()),
+                to_do_id: complete.to_do_id.clone(),
+                title: Title::new(complete.title.to_string()).unwrap(),
+                owner: OwnerId::new(complete.owner.to_string()).unwrap(),
             }),
         };
 
@@ -128,47 +153,29 @@ impl ToDo {
     pub fn set_completed(self, is_complete: bool) -> Result<ToDo, ()> {
         let response = match is_complete {
             true => match &self {
-                ToDo::Unvalidated(unvalidated) => ToDo::Unvalidated(UnvalidatedToDo {
-                    title: Title::Title(unvalidated.title.to_string()),
-                    owner: OwnerId::OwnerId(unvalidated.owner.to_string()),
-                }),
-                ToDo::Validated(validated) => ToDo::Complete(CompleteToDo {
-                    to_do_id: ToDoId::ToDoId(validated.to_do_id.to_string()),
-                    title: Title::Title(validated.title.to_string()),
-                    owner: OwnerId::OwnerId(validated.owner.to_string()),
-                }),
                 ToDo::Incomplete(incomplete) => ToDo::Complete(CompleteToDo {
-                    to_do_id: ToDoId::ToDoId(incomplete.to_do_id.to_string()),
-                    title: Title::Title(incomplete.title.to_string()),
-                    owner: OwnerId::OwnerId(incomplete.owner.to_string()),
+                    to_do_id: incomplete.to_do_id.clone(),
+                    title: Title::new(incomplete.title.to_string()).unwrap(),
+                    owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
                 }),
                 ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
-                    to_do_id: ToDoId::ToDoId(complete.to_do_id.to_string()),
-                    title: Title::Title(complete.title.to_string()),
-                    owner: OwnerId::OwnerId(complete.owner.to_string()),
+                    to_do_id: complete.to_do_id.clone(),
+                    title: Title::new(complete.title.to_string()).unwrap(),
+                    owner: OwnerId::new(complete.owner.to_string()).unwrap(),
                 }),
             },
             false => match &self {
-                ToDo::Unvalidated(unvalidated) => ToDo::Unvalidated(UnvalidatedToDo {
-                    title: Title::Title(unvalidated.title.to_string()),
-                    owner: OwnerId::OwnerId(unvalidated.owner.to_string()),
-                }),
-                ToDo::Validated(validated) => ToDo::Incomplete(IncompleteToDo {
-                    to_do_id: ToDoId::ToDoId(validated.to_do_id.to_string()),
-                    title: Title::Title(validated.title.to_string()),
-                    owner: OwnerId::OwnerId(validated.owner.to_string()),
-                }),
                 ToDo::Incomplete(incomplete) => ToDo::Incomplete(IncompleteToDo {
-                    to_do_id: ToDoId::ToDoId(incomplete.to_do_id.to_string()),
-                    title: Title::Title(incomplete.title.to_string()),
-                    owner: OwnerId::OwnerId(incomplete.owner.to_string()),
+                    to_do_id: incomplete.to_do_id.clone(),
+                    title: Title::new(incomplete.title.to_string()).unwrap(),
+                    owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
                 }),
                 ToDo::Complete(complete) => ToDo::Incomplete(IncompleteToDo {
-                    to_do_id: ToDoId::ToDoId(complete.to_do_id.to_string()),
-                    title: Title::Title(complete.title.to_string()),
-                    owner: OwnerId::OwnerId(complete.owner.to_string()),
+                    to_do_id: complete.to_do_id.clone(),
+                    title: Title::new(complete.title.to_string()).unwrap(),
+                    owner: OwnerId::new(complete.owner.to_string()).unwrap(),
                 }),
-            }
+            },
         };
 
         Ok(response)
@@ -176,16 +183,6 @@ impl ToDo {
 
     pub fn into_dto(self) -> ToDoItem {
         match &self {
-            ToDo::Unvalidated(unvalidated) => ToDoItem {
-                id: String::from(""),
-                is_complete: false,
-                title: unvalidated.title.to_string(),
-            },
-            ToDo::Validated(validated) => ToDoItem {
-                id: validated.to_do_id.to_string(),
-                is_complete: false,
-                title: validated.title.to_string(),
-            },
             ToDo::Incomplete(incomplete) => ToDoItem {
                 id: incomplete.to_do_id.to_string(),
                 is_complete: false,
@@ -225,19 +222,6 @@ impl ToDo {
 }
 
 #[non_exhaustive]
-pub struct UnvalidatedToDo {
-    title: Title,
-    owner: OwnerId,
-}
-
-#[non_exhaustive]
-pub struct ValidatedToDo {
-    to_do_id: ToDoId,
-    title: Title,
-    owner: OwnerId,
-}
-
-#[non_exhaustive]
 pub struct IncompleteToDo {
     to_do_id: ToDoId,
     title: Title,
@@ -251,39 +235,82 @@ pub struct CompleteToDo {
     owner: OwnerId,
 }
 
-pub enum ToDoId {
-    ToDoId(String),
+#[derive(Clone)]
+pub struct ToDoId {
+    value: String
 }
 
 impl ToDoId {
-    pub fn to_string(&self) -> String {
-        let ToDoId::ToDoId(value) = self;
+    pub fn new() -> ToDoId {
+        ToDoId::parse(Uuid::new_v4().to_string()).unwrap()
+    }
 
-        value.clone()
+    pub fn parse(existing_id: String) -> Result<ToDoId, ValidationError> {
+        if existing_id.to_string().len() <= 0 || existing_id.to_string().len() > 50 {
+            println!("Title is invalid");
+
+            return Err(ValidationError::new(
+                "Must be between 1 and 50 chars".to_string(),
+            ));
+        }
+
+        Ok(ToDoId {
+            value: existing_id.to_string()
+        })
+    }
+
+    pub fn to_string(&self) -> String {
+        self.value.clone()
     }
 }
 
-pub enum Title {
-    Title(String),
+#[derive(Clone)]
+pub struct Title {
+    value: String
 }
 
 impl Title {
-    pub fn to_string(&self) -> String {
-        let Title::Title(value) = self;
+    pub fn new(title: String) -> Result<Title, ValidationError> {
+        if title.to_string().len() <= 0 || title.to_string().len() > 50 {
+            println!("Title is invalid");
 
-        value.clone()
+            return Err(ValidationError::new(
+                "Must be between 1 and 50 chars".to_string(),
+            ));
+        }
+
+        Ok(Title {
+            value: title.to_string()
+        })
+    }
+
+    pub fn to_string(&self) -> String {
+        self.value.clone()
     }
 }
 
-pub enum OwnerId {
-    OwnerId(String),
+#[derive(Clone)]
+pub struct OwnerId {
+    value: String
 }
 
 impl OwnerId {
-    pub fn to_string(&self) -> String {
-        let OwnerId::OwnerId(value) = self;
+    pub fn new(owner_id: String) -> Result<OwnerId, ValidationError> {
+        if owner_id.to_string().len() <= 0 {
+            println!("Title is invalid");
 
-        value.clone()
+            return Err(ValidationError::new(
+                "Must be between 1 and 50 chars".to_string(),
+            ));
+        }
+
+        Ok(OwnerId {
+            value: owner_id.to_string()
+        })
+    }
+
+    pub fn to_string(&self) -> String {
+        self.value.clone()
     }
 }
 
@@ -313,16 +340,15 @@ pub trait Repository {
 /// These tests are run using the `cargo test` command.
 #[cfg(test)]
 mod tests {
-    use crate::domain::entities::{ToDo, OwnerId, Title};
+    use crate::domain::entities::{OwnerId, Title, ToDo};
 
     use super::ToDoId;
 
     #[test]
     fn valid_data_should_return_validated_to_do() {
-        let to_do = ToDo::new(Title::Title(String::from("my title")),
-            OwnerId::OwnerId(String::from("jameseastham")),
-            Option::None,
-            Option::None
+        let to_do = ToDo::new(
+            Title::new(String::from("my title")).unwrap(),
+            OwnerId::new(String::from("jameseastham")).unwrap(),
         );
 
         assert_eq!(to_do.is_err(), false);
@@ -333,9 +359,9 @@ mod tests {
     #[test]
     fn update_title_for_incomplete_todo_should_change() {
         let todo = ToDo::Incomplete(super::IncompleteToDo {
-            to_do_id: ToDoId::ToDoId(String::from("hello")),
-            title: Title::Title(String::from("hello")),
-            owner: OwnerId::OwnerId(String::from("hello")),
+            to_do_id: ToDoId::parse(String::from("hello")).unwrap(),
+            title: Title::new(String::from("hello")).unwrap(),
+            owner: OwnerId::new(String::from("hello")).unwrap(),
         });
 
         let updated_todo = todo.update_title(String::from("my new title"));
@@ -350,9 +376,9 @@ mod tests {
     #[test]
     fn update_title_for_completed_todo_should_not_change() {
         let todo = ToDo::Complete(super::CompleteToDo {
-            to_do_id: ToDoId::ToDoId(String::from("hello")),
-            title: Title::Title(String::from("hello")),
-            owner: OwnerId::OwnerId(String::from("hello")),
+            to_do_id: ToDoId::parse(String::from("hello")).unwrap(),
+            title: Title::new(String::from("hello")).unwrap(),
+            owner: OwnerId::new(String::from("hello")).unwrap(),
         });
 
         let updated_todo = todo.update_title(String::from("my new title"));
@@ -365,24 +391,30 @@ mod tests {
     }
 
     #[test]
+    fn new_id_should_return_valid_to_do_id() {
+        let to_do_id = ToDoId::new();
+
+        assert_eq!(to_do_id.to_string().len(), 36)
+    }
+
+    #[test]
+    fn parse_empty_id_should_return_validate_error() {
+        let to_do_id = ToDoId::parse(String::from(""));
+
+        assert_eq!(to_do_id.is_err(), true);
+    }
+
+    #[test]
     fn empty_title_should_return_validate_error() {
-        let to_do = ToDo::new(Title::Title(String::from("")),
-            OwnerId::OwnerId(String::from("jameseastham")),
-            Option::None,
-            Option::None
-        );
+        let to_do = Title::new(String::from(""));
 
         assert_eq!(to_do.is_err(), true);
     }
 
     #[test]
     fn empty_owner_should_return_validate_error() {
-        let to_do = ToDo::new(Title::Title(String::from("my title")),
-            OwnerId::OwnerId(String::from("")),
-            Option::None,
-            Option::None
-        );
+        let owner = OwnerId::new(String::from(""));
 
-        assert_eq!(to_do.is_err(), true);
+        assert_eq!(owner.is_err(), true);
     }
 }

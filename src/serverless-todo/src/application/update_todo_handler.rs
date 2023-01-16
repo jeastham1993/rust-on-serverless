@@ -5,11 +5,7 @@ use lambda_http::{
 };
 use lambda_runtime::LambdaEvent;
 
-use crate::domain::{
-    todo_service,
-    entities::Repository,
-    public_types::{UpdateToDoCommand},
-};
+use crate::domain::{entities::Repository, public_types::UpdateToDoCommand, todo_service};
 
 pub async fn update_todo_handler(
     client: &dyn Repository,
@@ -41,11 +37,10 @@ pub async fn update_todo_handler(
     // Convert the domain response back to a valid HTTP response
     Ok(ApiGatewayV2httpResponse {
         body: match &created_todo {
-            Ok(val) => Some(Body::Text(
-                serde_json::to_string_pretty(val)
-                .unwrap(),
-            )),
-            Err(err) => Some(Body::Text(format_error_response("Failure updating todo".to_string()))),
+            Ok(val) => Some(Body::Text(serde_json::to_string_pretty(val).unwrap())),
+            Err(err) => Some(Body::Text(format_error_response(
+                "Failure updating todo".to_string(),
+            ))),
         },
         status_code: match &created_todo {
             Ok(_) => 200,
@@ -117,11 +112,11 @@ mod tests {
             }
         }
 
-        async fn get_todo(&self, _:&String, _: &String) -> Result<ToDo, RepositoryError> {
+        async fn get_todo(&self, _: &String, _: &String) -> Result<ToDo, RepositoryError> {
             return Err(RepositoryError::new("Forced failure!".to_string()));
         }
 
-        async fn list_todos(&self, _:&String) -> Result<Vec<ToDo>, RepositoryError> {
+        async fn list_todos(&self, _: &String) -> Result<Vec<ToDo>, RepositoryError> {
             return Err(RepositoryError::new("Forced failure!".to_string()));
         }
     }
@@ -214,7 +209,7 @@ mod tests {
         assert_eq!(response.status_code, 400);
         assert_eq!(
             response.body.unwrap(),
-            Body::Text("{\"message\":  Must be between 1 and 50 chars}".to_string())
+            Body::Text("{\"message\":  Must be between 1 and 50 chars }".to_string())
         );
     }
 
@@ -238,7 +233,7 @@ mod tests {
         assert_eq!(response.status_code, 400);
         assert_eq!(
             response.body.unwrap(),
-            Body::Text("{\"message\":  Must be between 1 and 50 chars}".to_string())
+            Body::Text("{\"message\":  Must be between 1 and 50 chars }".to_string())
         );
     }
 

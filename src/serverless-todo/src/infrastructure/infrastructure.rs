@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use aws_sdk_dynamodb::{model::AttributeValue, Client};
 
-use crate::domain::entities::{ToDo, OwnerId, Title};
+use crate::domain::entities::{OwnerId, Title, ToDo};
 use crate::domain::{
     entities::{Repository, ToDoId},
-    error_types::RepositoryError
+    error_types::RepositoryError,
 };
 
 pub struct DynamoDbRepository<'a> {
@@ -32,22 +32,10 @@ impl Repository for DynamoDbRepository<'_> {
             .table_name(self.table_name)
             .item("PK", AttributeValue::S(body.get_owner().to_string()))
             .item("SK", AttributeValue::S(body.get_id().to_string()))
-            .item(
-                "id",
-                AttributeValue::S(body.get_id().into()),
-            )
-            .item(
-                "title",
-                AttributeValue::S(body.get_title().into()),
-            )
-            .item(
-                "status",
-                AttributeValue::S(body.get_status().into()),
-            )
-            .item(
-                "ownerId",
-                AttributeValue::S(body.get_owner().into()),
-            )
+            .item("id", AttributeValue::S(body.get_id().into()))
+            .item("title", AttributeValue::S(body.get_title().into()))
+            .item("status", AttributeValue::S(body.get_status().into()))
+            .item("ownerId", AttributeValue::S(body.get_owner().into()))
             .send()
             .await;
 
@@ -74,10 +62,15 @@ impl Repository for DynamoDbRepository<'_> {
                 let item = res.unwrap();
                 let attributes = item.item().unwrap().clone();
 
-                ToDo::new(Title::Title(attributes.get("title").unwrap().as_s().unwrap().clone()),
-                    OwnerId::OwnerId(attributes.get("ownerId").unwrap().as_s().unwrap().clone()),
+                ToDo::parse(
+                    Title::new(attributes.get("title").unwrap().as_s().unwrap().clone()).unwrap(),
+                    OwnerId::new(attributes.get("ownerId").unwrap().as_s().unwrap().clone()).unwrap(),
                     Some(attributes.get("status").unwrap().as_s().unwrap().clone()),
-                    Some(ToDoId::ToDoId(attributes.get("id").unwrap().as_s().unwrap().clone()))).unwrap()
+                    Some(ToDoId::parse(
+                        attributes.get("id").unwrap().as_s().unwrap().clone(),
+                    ).unwrap()),
+                )
+                .unwrap()
             }),
             Err(e) => Err(RepositoryError::new(e.to_string())),
         }
@@ -90,27 +83,27 @@ impl Repository for DynamoDbRepository<'_> {
             .client
             .query()
             .table_name(self.table_name)
-            .key_condition_expression(
-                "PK = :hashKey",
-            )
-            .expression_attribute_values(
-                ":hashKey",
-                AttributeValue::S(owner.to_string()),
-            )
+            .key_condition_expression("PK = :hashKey")
+            .expression_attribute_values(":hashKey", AttributeValue::S(owner.to_string()))
             .send()
             .await;
 
         match res {
             Ok(query_res) => Ok({
-
                 let mut items: Vec<ToDo> = Vec::new();
 
                 for item in query_res.items().unwrap() {
                     items.push(
-                        ToDo::new(Title::Title(item.get("title").unwrap().as_s().unwrap().clone()),
-                        OwnerId::OwnerId(item.get("ownerId").unwrap().as_s().unwrap().clone()),
-                        Some(item.get("status").unwrap().as_s().unwrap().clone()),
-                        Some(ToDoId::ToDoId(item.get("id").unwrap().as_s().unwrap().clone()))).unwrap())
+                        ToDo::parse(
+                            Title::new(item.get("title").unwrap().as_s().unwrap().clone()).unwrap(),
+                            OwnerId::new(item.get("ownerId").unwrap().as_s().unwrap().clone()).unwrap(),
+                            Some(item.get("status").unwrap().as_s().unwrap().clone()),
+                            Some(ToDoId::parse(
+                                item.get("id").unwrap().as_s().unwrap().clone(),
+                            ).unwrap()),
+                        )
+                        .unwrap(),
+                    )
                 }
 
                 items
