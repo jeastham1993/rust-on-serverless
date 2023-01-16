@@ -29,8 +29,6 @@ Resources:
           KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
-      StreamSpecification:
-        StreamViewType: NEW_AND_OLD_IMAGES
 
   GetToDoFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
@@ -78,6 +76,24 @@ Resources:
           Properties:
             Path: /
             Method: post
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Table
+      Policies:
+        - DynamoDBWritePolicy: # More info about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+            TableName: !Ref Table
+
+  UpdateToDoFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: target/lambda/update_todo/
+      Handler: bootstrap.is.the.handler
+      Events:
+        RustApi:
+          Type: HttpApi # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /{id}
+            Method: put
       Environment:
         Variables:
           TABLE_NAME: !Ref Table

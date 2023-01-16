@@ -99,7 +99,7 @@ impl ToDo {
     }
 
     // Forcing immutability. When the title of a ToDo needs to be updated a new ToDo is returned.
-    fn update_title(self, new_title: String) -> Result<ToDo, ()> {
+    pub fn update_title(self, new_title: String) -> Result<ToDo, ()> {
         let response = match &self {
             ToDo::Unvalidated(unvalidated) => ToDo::Unvalidated(UnvalidatedToDo {
                 title: Title::Title(new_title),
@@ -120,6 +120,55 @@ impl ToDo {
                 title: Title::Title(complete.title.to_string()),
                 owner: OwnerId::OwnerId(complete.owner.to_string()),
             }),
+        };
+
+        Ok(response)
+    }
+
+    pub fn set_completed(self, is_complete: bool) -> Result<ToDo, ()> {
+        let response = match is_complete {
+            true => match &self {
+                ToDo::Unvalidated(unvalidated) => ToDo::Unvalidated(UnvalidatedToDo {
+                    title: Title::Title(unvalidated.title.to_string()),
+                    owner: OwnerId::OwnerId(unvalidated.owner.to_string()),
+                }),
+                ToDo::Validated(validated) => ToDo::Complete(CompleteToDo {
+                    to_do_id: ToDoId::ToDoId(validated.to_do_id.to_string()),
+                    title: Title::Title(validated.title.to_string()),
+                    owner: OwnerId::OwnerId(validated.owner.to_string()),
+                }),
+                ToDo::Incomplete(incomplete) => ToDo::Complete(CompleteToDo {
+                    to_do_id: ToDoId::ToDoId(incomplete.to_do_id.to_string()),
+                    title: Title::Title(incomplete.title.to_string()),
+                    owner: OwnerId::OwnerId(incomplete.owner.to_string()),
+                }),
+                ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
+                    to_do_id: ToDoId::ToDoId(complete.to_do_id.to_string()),
+                    title: Title::Title(complete.title.to_string()),
+                    owner: OwnerId::OwnerId(complete.owner.to_string()),
+                }),
+            },
+            false => match &self {
+                ToDo::Unvalidated(unvalidated) => ToDo::Unvalidated(UnvalidatedToDo {
+                    title: Title::Title(unvalidated.title.to_string()),
+                    owner: OwnerId::OwnerId(unvalidated.owner.to_string()),
+                }),
+                ToDo::Validated(validated) => ToDo::Incomplete(IncompleteToDo {
+                    to_do_id: ToDoId::ToDoId(validated.to_do_id.to_string()),
+                    title: Title::Title(validated.title.to_string()),
+                    owner: OwnerId::OwnerId(validated.owner.to_string()),
+                }),
+                ToDo::Incomplete(incomplete) => ToDo::Incomplete(IncompleteToDo {
+                    to_do_id: ToDoId::ToDoId(incomplete.to_do_id.to_string()),
+                    title: Title::Title(incomplete.title.to_string()),
+                    owner: OwnerId::OwnerId(incomplete.owner.to_string()),
+                }),
+                ToDo::Complete(complete) => ToDo::Incomplete(IncompleteToDo {
+                    to_do_id: ToDoId::ToDoId(complete.to_do_id.to_string()),
+                    title: Title::Title(complete.title.to_string()),
+                    owner: OwnerId::OwnerId(complete.owner.to_string()),
+                }),
+            }
         };
 
         Ok(response)
