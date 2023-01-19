@@ -16,7 +16,15 @@ Resources:
   ValidateOrderFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: target/lambda/rust-workflow-functions/
+      CodeUri: target/lambda/validate_order_function/
+      Handler: bootstrap.is.the.handler
+      Runtime: provided.al2
+      Architectures:
+        - x86_64
+  PriceOrderFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: target/lambda/price_order_function/
       Handler: bootstrap.is.the.handler
       Runtime: provided.al2
       Architectures:
@@ -48,6 +56,7 @@ Resources:
         Level: 'ALL'
       DefinitionSubstitutions:
         ValidateOrderFunctionArn: !GetAtt ValidateOrderFunction.Arn
+        PriceOrderFunctionArn: !GetAtt PriceOrderFunction.Arn
 
 ##########################################################################
 #   Roles                                                               #
@@ -72,7 +81,9 @@ Resources:
               - Effect: Allow
                 Action:
                   - "lambda:InvokeFunction"
-                Resource: !GetAtt ValidateOrderFunction.Arn
+                Resource:
+                  - !GetAtt ValidateOrderFunction.Arn
+                  - !GetAtt PriceOrderFunction.Arn
               - Effect: Allow
                 Action:
                   - "logs:CreateLogDelivery"
