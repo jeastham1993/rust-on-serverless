@@ -1,8 +1,6 @@
-use std::fmt;
-
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 use order_processing::shared::state_data::{
-    Address, PricedOrder, OrderLine, StateResponse, ValidatedOrder,
+    PricedOrder, StateResponse, ValidatedOrder,
 };
 
 /// Main function
@@ -16,7 +14,7 @@ async fn main() -> Result<(), Error> {
 
     println!("Init");
 
-    let res = run(service_fn(|request: LambdaEvent<StateResponse<ValidatedOrder>>| {
+    let res = run(service_fn(|request: LambdaEvent<ValidatedOrder>| {
         function_handler(request)
     }))
     .await;
@@ -25,42 +23,18 @@ async fn main() -> Result<(), Error> {
 }
 
 async fn function_handler(
-    evt: LambdaEvent<StateResponse<ValidatedOrder>>,
-) -> Result<StateResponse<PricedOrder>, ValidationError> {
+    evt: LambdaEvent<ValidatedOrder>,
+) -> Result<StateResponse<PricedOrder>, Error> {
 
-    let line_count = &evt.payload.data.order_lines.len();
+    let line_count = &evt.payload.order_lines.len();
     
     Ok(StateResponse {
         data: PricedOrder {
-            order_number: evt.payload.data.order_number,
-            order_lines: evt.payload.data.order_lines,
-            address: evt.payload.data.address,
+            order_number: evt.payload.order_number,
+            order_lines: evt.payload.order_lines,
+            address: evt.payload.address,
             total_amount: (line_count * 7) as f64
         },
-        events: evt.payload.events,
+        events: Vec::new()
     })
 }
-
-#[derive(Debug, Clone)]
-pub struct ValidationError {
-    errors: Vec<String>,
-}
-
-impl ValidationError {
-    pub fn new(message: Vec<String>) -> ValidationError {
-        ValidationError { errors: message }
-    }
-}
-
-// Generation of an error is completely separate from how it is displayed.
-// There's no need to be concerned about cluttering complex logic with the display style.
-//
-// Note that we don't store any extra info about the errors. This means we can't state
-// which string failed to parse without modifying our types to carry that information.
-impl fmt::Display for ValidationError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Validation error: {0}", self.to_string())
-    }
-}
-
-impl std::error::Error for ValidationError {}

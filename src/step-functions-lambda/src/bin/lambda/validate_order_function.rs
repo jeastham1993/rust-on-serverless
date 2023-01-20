@@ -28,31 +28,14 @@ async fn main() -> Result<(), Error> {
 async fn function_handler(
     evt: LambdaEvent<ProcessOrder>,
 ) -> Result<StateResponse<ValidatedOrder>, ValidationError> {
-    let mut evt_response = Vec::new();
+    let validation = validate_input(&evt.payload);
 
-    let address_validation = validate_address_details(&evt.payload.address);
-    let order_validation = validate_order_lines(&evt.payload.order_lines);
-
-    if address_validation.is_err() || order_validation.is_err() {
-        let mut validation_errors = Vec::new();
-
-        let address_errors = address_validation.err();
-        let order_errors = order_validation.err();
-
-        match address_errors {
-            Option::Some(error) => validation_errors.extend(error.errors),
-            _ => (),
-        };
-
-        match order_errors {
-            Option::Some(error) => validation_errors.extend(error.errors),
-            _ => (),
-        };
-
-        return Err(ValidationError::new(validation_errors));
+    if validation.is_err() {
+        return Err(validation.err().unwrap());
     }
 
     let order_number = Uuid::new_v4().to_string();
+    let mut evt_response = Vec::new();
 
     evt_response.push(Event::new(
         "validated".to_string(),
@@ -79,6 +62,28 @@ async fn function_handler(
         },
         events: evt_response,
     })
+}
+
+fn validate_input(order: &ProcessOrder) -> Result<(), ValidationError> {
+    let mut validation_results = Vec::new();
+
+    validation_results.push(validate_address_details(&order.address));
+    validation_results.push(validate_order_lines(&order.order_lines));
+
+    let mut errors = Vec::new();
+
+    for result in validation_results {
+        match result {
+            Err(err) => errors.push(err.to_string()),
+            Ok(_) => ()
+        }
+    }
+
+    if !errors.is_empty() {
+        return Err(ValidationError::new(errors));
+    }
+
+    Ok(())
 }
 
 fn validate_order_lines(order_lines: &Vec<OrderLine>) -> Result<(), ValidationError> {
@@ -132,6 +137,22 @@ pub struct ValidationError {
 impl ValidationError {
     pub fn new(message: Vec<String>) -> ValidationError {
         ValidationError { errors: message }
+    }
+
+    pub fn to_string(&self) -> String {
+        let mut result = String::from("");
+
+        for err in &self.errors {
+            result = format!("{result},{err}");
+        }
+
+        Self::rem_first_and_last(&result)
+    }
+
+    fn rem_first_and_last(value: &String) -> String {
+        let mut chars = value.chars();
+        chars.next();
+        chars.as_str().to_string()
     }
 }
 
