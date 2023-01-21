@@ -17,6 +17,7 @@ slog-term = "2.9.0"
 slog-async = "2.7.0"
 uuid = { version = "1.2.2", features = ["v4"] }
 chrono = "0.4.23"
+rand = "0.8.5"
 
 [dev-dependencies]
 http = "0.2.8"

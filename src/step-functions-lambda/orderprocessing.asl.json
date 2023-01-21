@@ -28,6 +28,7 @@
     "Price": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
+      "InputPath": "$.data",
       "OutputPath": "$.Payload",
       "Parameters": {
         "Payload.$": "$",

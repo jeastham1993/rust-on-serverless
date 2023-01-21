@@ -2,7 +2,7 @@ use std::fmt;
 
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 use order_processing::shared::state_data::{
-    Address, Event, OrderLine, ProcessOrder, StateResponse, ValidatedOrder, OrderValidationCompletedEvent,
+    Address, OrderLine, ProcessOrder, StateResponse, ValidatedOrder,
 };
 use uuid::Uuid;
 
@@ -35,15 +35,6 @@ async fn function_handler(
     }
 
     let order_number = Uuid::new_v4().to_string();
-    let mut evt_response = Vec::new();
-
-    evt_response.push(Event::new(
-        "validated".to_string(),
-        serde_json::to_string(&OrderValidationCompletedEvent {
-            order_number: order_number.to_string(),
-        })
-        .unwrap(),
-    ));
 
     let mut order_lines = Vec::new();
 
@@ -60,7 +51,6 @@ async fn function_handler(
             order_lines: order_lines,
             address: evt.payload.address,
         },
-        events: evt_response,
     })
 }
 

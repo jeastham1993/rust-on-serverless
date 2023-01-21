@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, FixedOffset, Utc};
+use chrono::{Utc};
 
 #[derive(Deserialize, Serialize)]
 pub struct ProcessOrder {
@@ -17,14 +17,9 @@ pub struct ValidatedOrder {
 #[derive(Deserialize, Serialize)]
 pub struct PricedOrder {
     pub order_number: String,
-    pub order_lines: Vec<OrderLine>,
+    pub order_lines: Vec<PricedLine>,
     pub address: Address,
     pub total_amount: f64
-}
-
-#[derive(Deserialize, Serialize)]
-pub struct OrderValidationCompletedEvent {
-    pub order_number: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -41,6 +36,14 @@ pub struct Address {
 pub struct OrderLine {
     pub product_code: String,
     pub quantity: f64,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct PricedLine {
+    pub product_code: String,
+    pub quantity: f64,
+    pub unit_price: f64,
+    pub line_price: f64
 }
 
 #[derive(Deserialize, Serialize)]
@@ -63,5 +66,4 @@ impl Event {
 #[derive(Deserialize, Serialize)]
 pub struct StateResponse<T> {
     pub data: T,
-    pub events: Vec<Event>,
 }
