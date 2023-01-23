@@ -57,6 +57,11 @@ Resources:
       DefinitionSubstitutions:
         ValidateOrderFunctionArn: !GetAtt ValidateOrderFunction.Arn
         PriceOrderFunctionArn: !GetAtt PriceOrderFunction.Arn
+        ValidationFailureQueueUrl: !Ref ValidationFailureQueue
+        OrdersTable: !Ref OrderProcessingTable
+
+  ValidationFailureQueue:
+    Type: AWS::SQS::Queue
 
 ##########################################################################
 #   Roles                                                               #
@@ -74,10 +79,20 @@ Resources:
             Action: "sts:AssumeRole"
       Path: "/"
       Policies:
-        - PolicyName: LambdaExecute
+        - PolicyName: SFPermissions
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
+              - Effect: Allow
+                Action:
+                  - "dynamodb:PutItem"
+                Resource:
+                  - !GetAtt OrderProcessingTable.Arn
+              - Effect: Allow
+                Action:
+                  - "sqs:SendMessage"
+                Resource:
+                  - !GetAtt ValidationFailureQueue.Arn
               - Effect: Allow
                 Action:
                   - "lambda:InvokeFunction"
@@ -102,6 +117,17 @@ Resources:
                   - "xray:GetSamplingRules"
                   - "xray:GetSamplingTargets"
                 Resource: "*"
+
+##########################################################################
+#   State                                                                #
+##########################################################################
+
+  OrderProcessingTable:
+    Type: AWS::Serverless::SimpleTable # More info about SimpleTable Resource: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-simpletable.html
+    Properties:
+      PrimaryKey:
+        Name: PK
+        Type: String
 
 Outputs:
   PutFunction:

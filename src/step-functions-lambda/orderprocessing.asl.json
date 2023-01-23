@@ -23,7 +23,25 @@
           "BackoffRate": 2
         }
       ],
-      "Next": "Price"
+      "Next": "Price",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "&order_processing::shared::shared_data::InvalidOrder"
+          ],
+          "Next": "Validation Failure Queue",
+          "ResultPath": "$.validation_error"
+        }
+      ]
+    },
+    "Validation Failure Queue": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "MessageBody.$": "$",
+        "QueueUrl": "${ValidationFailureQueueUrl}"
+      },
+      "End": true
     },
     "Price": {
       "Type": "Task",
@@ -47,6 +65,31 @@
           "BackoffRate": 2
         }
       ],
+      "Next": "Format for Dynamo"
+    },
+    "Format for Dynamo": {
+      "Type": "Pass",
+      "Next": "DynamoDB PutItem",
+      "Parameters": {
+        "PK.$": "$.data.order_number",
+        "Data.$": "States.JsonToString($.data)"
+      },
+      "ResultPath": "$.formatted"
+    },
+    "DynamoDB PutItem": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:putItem",
+      "Parameters": {
+        "TableName": "${OrdersTable}",
+        "Item": {
+          "PK": {
+            "S.$": "$.formatted.PK"
+          },
+          "Item": {
+            "S.$": "$.formatted.Data"
+          }
+        }
+      },
       "End": true
     }
   }
