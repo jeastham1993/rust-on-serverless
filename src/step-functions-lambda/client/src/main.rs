@@ -2,6 +2,7 @@ use url::Url;
 use tungstenite::{connect, Message};
 use std::{io::{stdin,stdout,Write}};
 use serde::{Deserialize, Serialize};
+use std::time::{Duration, Instant};
 
 fn main() {
     let (mut socket, response) = connect(
@@ -35,13 +36,16 @@ fn main() {
         }
     };
 
+    let start = Instant::now();
+
     let serialized_to_send = serde_json::to_string(&process_order_message);
   
     socket.write_message(Message::Text(serialized_to_send.unwrap().into()));
     
     loop {
         let msg = socket.read_message().expect("Error reading message");
-        println!("Received: {}", msg);
+        let duration = start.elapsed();
+        println!("Response received in {}ms: {}", duration.as_millis(), msg);
     }
 }
 
