@@ -18,10 +18,14 @@ slog-async = "2.7.0"
 uuid = { version = "1.2.2", features = ["v4"] }
 chrono = "0.4.23"
 rand = "0.8.5"
+aws-sdk-apigatewaymanagement = "0.23.0"
+aws-config = "0.53.0"
 
 [dev-dependencies]
 http = "0.2.8"
 mockall = "0.11.2"
+tungstenite = {version = "0.18.0", features = ["native-tls"]}
+url = "2.2.2"
 
 [features]
 default = ["lambda"]
@@ -36,5 +40,17 @@ required-features = ["lambda"]
 [[bin]]
 name = "price_order_function"
 path = "src/bin/lambda/price_order_function.rs"
+test = false
+required-features = ["lambda"]
+
+[[bin]]
+name = "send_web_socket_response"
+path = "src/bin/lambda/send_web_socket_response.rs"
+test = false
+required-features = ["lambda"]
+
+[[bin]]
+name = "test_harness"
+path = "src/bin/lambda/test_harness.rs"
 test = false
 required-features = ["lambda"]

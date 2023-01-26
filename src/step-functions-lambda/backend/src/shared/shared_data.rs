@@ -27,7 +27,7 @@ impl std::fmt::Display for InvalidOrder {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct PricedOrder {
     pub order_number: String,
     pub order_lines: Vec<PricedLine>,
@@ -35,7 +35,7 @@ pub struct PricedOrder {
     pub total_amount: f64,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct PricedLine {
     pub product_code: String,
     pub quantity: f64,
@@ -62,6 +62,7 @@ pub struct OrderLine {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct StateResponse<T> {
     pub data: T,
+    pub connectionId: String
 }
 
 impl<T> std::fmt::Display for StateResponse<T>
