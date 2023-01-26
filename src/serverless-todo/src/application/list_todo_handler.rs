@@ -10,8 +10,8 @@ use crate::domain::{
     todo_service,
 };
 
-pub async fn list_todo_handler(
-    client: &dyn Repository,
+pub async fn list_todo_handler<T: Repository>(
+    client: &T,
     request: LambdaEvent<ApiGatewayV2httpRequest>,
 ) -> Result<ApiGatewayV2httpResponse, Error> {
     tracing::info!("Received request from API Gateway");

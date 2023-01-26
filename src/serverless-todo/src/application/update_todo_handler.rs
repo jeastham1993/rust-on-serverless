@@ -7,8 +7,8 @@ use lambda_runtime::LambdaEvent;
 
 use crate::domain::{entities::Repository, public_types::UpdateToDoCommand, todo_service};
 
-pub async fn update_todo_handler(
-    client: &dyn Repository,
+pub async fn update_todo_handler<T: Repository>(
+    client: &T,
     request: LambdaEvent<ApiGatewayV2httpRequest>,
 ) -> Result<ApiGatewayV2httpResponse, Error> {
     tracing::info!("Received request from API Gateway");
