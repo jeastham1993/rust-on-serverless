@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  rust-sam-app
+
+  Sample SAM Template for rust-sam-app
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+    Handler: bootstrap.is.the.handler
+    Runtime: provided.al2
+    Architectures:
+      - x86_64
+
+Resources:
+  Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+  ApiFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: target/lambda/actix-gcd-lambda/
+      Handler: bootstrap.is.the.handler
+      Events:
+        RustApi:
+          Type: HttpApi # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Table
+      Policies:
+        - DynamoDBCrudPolicy: # More info about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+            TableName: !Ref Table
+Outputs:
+  ServerlessApi:
+    Description: "API Gateway endpoint URL for Prod stage for Put function"
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/"
