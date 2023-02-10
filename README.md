@@ -12,6 +12,12 @@ As Rust is intended as a C/C++ like language, isn't particularly object orientat
 
 A simple HTTP web server implemented in Rust.
 
+### HTTP Web Server on Lambda
+
+[Link](./src/axum-lambda-web)
+
+An [Axum](https://github.com/tokio-rs/axum) web server running on AWS Lambda.
+
 ### Serverless ToDo API
 
 [Link](./src/serverless-todo)
