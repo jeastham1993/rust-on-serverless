@@ -1,4 +1,6 @@
+@use super::statics::*;
 @use crate::Todo;
+@use crate::nav;
 
 @(todos: Vec<Todo>)
 
@@ -6,28 +8,53 @@
   <html lang="en">
 
   <head>
-    <title>Example</title>
+    <title>Rust Todo</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
+    <link href="/static/@style_css.name" rel="stylesheet">
   </head>
 
   <body>
-    <main class="container mx-auto">
-      <h1 class="text-3xl font-bold underline text-clifford">Rust ToDo</h1>
-      <table class="table-auto">
-        <tr>
-          <th>message</th>
-        </tr>
-        @for todo in todos {
-        <tr>
-          <td>@todo.text</td>
-        </tr>
-        }
-      </table>
+    @:nav()
+    <main class="container mx-auto my-2 w-2/3">
+      <form>
+        <label class="block text-gray-700 text-sm font-bold mb-2" for="text">What do you need to do?</label>
+        <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"  id="text" name="text">
+        <button class="btn">Add +</button>
+      </form>
+      <div class="flex flex-row">
+        <div class="basis-1/4">
+          <div class="flex flex-col">
+            <div class="overflow-x-auto sm:-mx-6 lg:-mx-8">
+              <div class="py-2 inline-block min-w-full sm:px-6 lg:px-8">
+                <div class="overflow-hidden">
+                  <table class="min-w-full">
+                    <thead class="border-b">
+                      <tr>
+                        <th scope="col" class="text-sm font-medium text-gray-900 px-6 py-4 text-left">
+                          Todo
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      </tr class="border-b">
+                      @for todo in todos {
+                      <tr>
+                        <td class="text-sm text-gray-900 font-light px-6 py-4 whitespace-nowrap">@todo.text</td>
+                      </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
   </body>
 
