@@ -4,16 +4,27 @@ use aws_config::SdkConfig;
 use aws_sdk_dynamodb::{model::AttributeValue, Client};
 use axum::{
     extract::Path,
-    response::Json,
-    routing::{get, post},
+    response::{Json, IntoResponse},
+    routing::{get},
     Router,
-    extract::State,
+    extract::State, error_handling::HandleErrorLayer,
 };
+use axum::http::StatusCode;
 use serde::Serialize;
-use std::sync::Arc;
-
+use uuid::Uuid;
+use std::{
+    net::SocketAddr,
+    sync::{Arc},
+    time::Duration,
+};
+use tower::{BoxError, ServiceBuilder};
+use tower_http::trace::TraceLayer;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use lambda_http::{run, Error, aws_lambda_events::serde::Deserialize};
 use serde_json::{json, Value};
+
+#[macro_use]
+mod axum_ructe;
 
 struct AppState {
     dynamodb_client: Client,
@@ -22,10 +33,12 @@ struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        // disabling time is handy because CloudWatch will add the ingestion time.
-        .without_time()
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "axum_lambda=debug,tower_http=debug".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
         .init();
 
     let config: SdkConfig = aws_config::load_from_env().await;
@@ -37,13 +50,71 @@ async fn main() -> Result<(), Error> {
         table_name: table_name.clone()
      });
 
-    let app = Router::new()
-        .route("/", get(root))
-        .route("/todo", get(list_todo).post(post_todo))
-        .route("/todo/:id", get(get_todo))
-        .with_state(shared_state);
 
-    run(app).await
+    let is_lambda = &env::var("LAMBDA_TASK_ROOT");
+
+    if is_lambda.is_ok() {
+        let app = Router::new()
+            .route("/", get(root))
+            .route("/home", get(home_page))
+            .route("/todo", get(list_todo).post(post_todo))
+            .route("/todo/:id", get(get_todo))
+            // Add middleware to all layers
+            .layer(
+                ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(|error: BoxError| async move {
+                    if error.is::<tower::timeout::error::Elapsed>() {
+                        Ok(StatusCode::REQUEST_TIMEOUT)
+                    } else {
+                        Err((
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            format!("Unhandled internal error: {}", error),
+                        ))
+                    }
+                }))
+                .timeout(Duration::from_secs(10))
+                .layer(TraceLayer::new_for_http())
+                .into_inner(),
+            )
+            .with_state(shared_state);
+            
+        run(app).await;
+    }
+    else {
+        
+        let axum_app = Router::new()
+            .route("/", get(root))
+            .route("/home", get(home_page))
+            .route("/todo", get(list_todo).post(post_todo))
+            .route("/todo/:id", get(get_todo))
+            // Add middleware to all layers
+            .layer(
+                ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(|error: BoxError| async move {
+                    if error.is::<tower::timeout::error::Elapsed>() {
+                        Ok(StatusCode::REQUEST_TIMEOUT)
+                    } else {
+                        Err((
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            format!("Unhandled internal error: {}", error),
+                        ))
+                    }
+                }))
+                .timeout(Duration::from_secs(10))
+                .layer(TraceLayer::new_for_http())
+                .into_inner(),
+            )
+            .with_state(shared_state);
+
+        let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+        tracing::debug!("listening on {}", addr);
+        axum::Server::bind(&addr)
+            .serve(axum_app.into_make_service())
+            .await
+            .unwrap();
+    }
+
+    Ok(())
 }
 
 async fn root() -> Json<Value> {
@@ -59,36 +130,104 @@ async fn list_todo(State(state): State<Arc<AppState>>) -> Json<Value> {
         .send()
         .await;
 
-    Json(json!(res.unwrap().count()))    
+    let query_result =res.unwrap();
+
+    let mut items: Vec<Todo> = Vec::new();
+
+    query_result.items().expect("Items to exist").into_iter().for_each(|item| {
+        items.push(
+        Todo {
+            id: item["id"].as_s().unwrap().to_string(),
+            text: item["text"].as_s().unwrap().to_string(),
+            completed: *item["completed"].as_bool().unwrap()
+        });
+    });
+
+    Json(json!(items))    
 }
 
 async fn get_todo(Path(id): Path<String>, State(state): State<Arc<AppState>>) -> Json<Value> {
     let res = state.dynamodb_client
-        .query()
+        .get_item()
         .table_name(&state.table_name)
-        .key_condition_expression("PK = :hashKey and SK = :sortKey")
-        .expression_attribute_values(":hashKey", AttributeValue::S(String::from("USER#JAMESEASTHAM")))
-        .expression_attribute_values(":sortKey", AttributeValue::S(String::from(id.to_uppercase())))
+        .key("PK", AttributeValue::S("USER#JAMESEASTHAM".to_string()))
+        .key("SK", AttributeValue::S(String::from(format!("TODO#{0}", id.to_uppercase()))))
         .send()
         .await;
 
-    Json(json!(res.unwrap().count()))
+    let response_value = res.unwrap();
+    let result_item = response_value.item().expect("Item should exist");
+
+    let todo = Todo {
+        id: result_item["id"].as_s().unwrap().to_string(),
+        text: result_item["text"].as_s().unwrap().to_string(),
+        completed: *result_item["completed"].as_bool().unwrap()
+    };
+
+    Json(json!(todo))
+}
+
+/// Home page handler; just render a template with some arguments.
+async fn home_page(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let res = state.dynamodb_client
+        .query()
+        .table_name(&state.table_name)
+        .key_condition_expression("PK = :hashKey")
+        .expression_attribute_values(":hashKey", AttributeValue::S(String::from("USER#JAMESEASTHAM")))
+        .send()
+        .await;
+
+    let query_result =res.unwrap();
+
+    let mut items: Vec<Todo> = Vec::new();
+
+    query_result.items().expect("Items to exist").into_iter().for_each(|item| {
+        items.push(
+        Todo {
+            id: item["id"].as_s().unwrap().to_string(),
+            text: item["text"].as_s().unwrap().to_string(),
+            completed: *item["completed"].as_bool().unwrap()
+        });
+    });
+
+    render!(
+        templates::page_html,
+        items
+    )
 }
 
 async fn post_todo(State(state): State<Arc<AppState>>, Json(input): Json<CreateTodo>) -> Json<Value> {
+
+    let todo = Todo {
+        completed: false,
+        text: input.text,
+        id: Uuid::new_v4().to_string()
+    };
+
     let res = state.dynamodb_client
             .put_item()
             .table_name(&state.table_name)
             .item("PK", AttributeValue::S(String::from("USER#JAMESEASTHAM")))
-            .item("SK", AttributeValue::S(String::from("TESTID")))
-            .item("text", AttributeValue::S(input.text))
+            .item("SK", AttributeValue::S(String::from(format!("TODO#{0}", &todo.id.to_uppercase()))))
+            .item("text", AttributeValue::S(todo.text.to_string()))
+            .item("id", AttributeValue::S(todo.id.to_string()))
+            .item("completed", AttributeValue::Bool(todo.completed))
             .send()
             .await;
 
-    Json(json!("OK"))
+    Json(json!(todo))
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 struct CreateTodo {
     text: String,
 }
+
+#[derive(Debug, Serialize, Clone)]
+pub struct Todo {
+    id: String,
+    text: String,
+    completed: bool,
+}
+
+include!(concat!(env!("OUT_DIR"), "/templates.rs"));

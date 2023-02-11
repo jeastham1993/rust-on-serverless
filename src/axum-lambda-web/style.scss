@@ -1,0 +1,30 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Roboto', sans-serif;
+}
+
+main {
+    padding: 2ex 3ex;
+    margin: 8vh auto 1em;
+    max-width: 37em;
+    background: white;
+    border-radius: 1em;
+    position: relative;
+
+    &:before, &:after {
+        display: block;
+        position: absolute;
+        z-index: -1;
+    }
+    &:before {
+        width: 52%;
+        top: -7vh;
+        left: -7%;
+    }
+    &:after {
+        width: 30%;
+        top: -6vh;
+        right: -4%;
+    }
+}

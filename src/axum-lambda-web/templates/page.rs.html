@@ -1,0 +1,34 @@
+@use crate::Todo;
+
+@(todos: Vec<Todo>)
+
+  <!doctype html>
+  <html lang="en">
+
+  <head>
+    <title>Example</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
+  </head>
+
+  <body>
+    <main class="container mx-auto">
+      <h1 class="text-3xl font-bold underline text-clifford">Rust ToDo</h1>
+      <table class="table-auto">
+        <tr>
+          <th>message</th>
+        </tr>
+        @for todo in todos {
+        <tr>
+          <td>@todo.text</td>
+        </tr>
+        }
+      </table>
+    </main>
+  </body>
+
+  </html>
