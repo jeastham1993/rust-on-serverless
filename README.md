@@ -1,5 +1,7 @@
 # Rust on Serverless
 
+![](./assets/rust-programming.jpg)
+
 *A short disclaimer, I am learning in public with this repository. The samples may not represent best practices for the Rust language. If you spot anything that could be done better, please reach out and let me know.*
 
 Historically, I've always worked with .NET, an object orientated language. This repo is my central place to challenge this object oriented view on the world and start working with a different language. All this learning is within the context of AWS Serverless technologies.
