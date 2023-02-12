@@ -10,7 +10,7 @@ One of the original use cases for Rust is as an embedded systems programming lan
 
 ## Samples
 
-All the samples listed below can be built and deployed in the same way. From the root of the sample directory, run `make build` and then `sam deploy --guided`. For example, if I wanted to deploy the 'HTTP Web Server on Lambda' example I would run:
+All the samples listed below use a combination of [cargo lambda](https://www.cargo-lambda.info/) and [AWS SAM](https://aws.amazon.com/serverless/sam/) to compile and deploy. If you want to deploy the examples into your own account, from the root of the sample directory, run `make build` and then `sam deploy --guided`. For example, if I wanted to deploy the 'HTTP Web Server on Lambda' example I would run:
 
 ``` bash
 cd src/axum-lambda-web
@@ -36,6 +36,8 @@ An [Axum](https://github.com/tokio-rs/axum) web server running on AWS Lambda. Se
 
 A fulley serverless ToDo API implemented with API Gateway, Lambda & DynamoDB. Demonstrates how to package multiple handlers in the same project.
 
+This example also demonstrates how hexagaonal architecture practices and domain driven design can be applied to an application written in Rust.
+
 ### Step Functions Lambda
 
 An order validation pipeline implemented using Step Functions & Rust. A look at how functional programming concepts can work with Rust & AWS Serverless technologies.
@@ -49,3 +51,4 @@ A Lambda function sourced by SQS.
 ## Additional Resources
 
 - [Serverless Rust YouTube series](https://www.youtube.com/watch?v=i6FKvK5JQ8o&list=PLCOG9xkUD90KQ1IPQT_m1NbPRXXRFb63s)
+- [Cargo Lambda CLI](https://www.cargo-lambda.info/)
