@@ -52,6 +52,7 @@ async fn main() -> Result<(), Error> {
     if is_lambda.is_ok() {
         let app = Router::new()
             .route("/", get(root))
+            .route("/home", get(home_page).post(home_page_post))
             .route("/todo", get(list_todo).post(post_todo))
             .route("/todo/:id", get(get_todo))
             // Add middleware to all layers
@@ -77,6 +78,7 @@ async fn main() -> Result<(), Error> {
     } else {
         let axum_app = Router::new()
             .route("/", get(root))
+            .route("/home", get(home_page).post(home_page_post))
             .route("/todo", get(list_todo).post(post_todo))
             .route("/todo/:id", get(get_todo))
             // Add middleware to all layers
@@ -170,6 +172,66 @@ async fn get_todo(Path(id): Path<String>, State(state): State<Arc<AppState>>) ->
     Json(json!(todo))
 }
 
+/// Home page handler; just render a template with some arguments.
+async fn home_page(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let res = state
+        .dynamodb_client
+        .query()
+        .table_name(&state.table_name)
+        .key_condition_expression("PK = :hashKey")
+        .expression_attribute_values(
+            ":hashKey",
+            AttributeValue::S(String::from("USER#JAMESEASTHAM")),
+        )
+        .send()
+        .await;
+
+    let query_result = res.unwrap();
+
+    let mut items: Vec<Todo> = Vec::new();
+
+    query_result
+        .items()
+        .expect("Items to exist")
+        .into_iter()
+        .for_each(|item| {
+            items.push(Todo {
+                id: item["id"].as_s().unwrap().to_string(),
+                text: item["text"].as_s().unwrap().to_string(),
+                completed: *item["completed"].as_bool().unwrap(),
+            });
+        });
+
+    render!(templates::page_html, items)
+}
+
+async fn home_page_post(State(state): State<Arc<AppState>>, form: Form<CreateTodo>) {
+    tracing::debug!("Creating {}", form.text.clone());
+
+    let todo = Todo {
+        completed: false,
+        text: form.text.clone(),
+        id: Uuid::new_v4().to_string(),
+    };
+
+    let res = state
+        .dynamodb_client
+        .put_item()
+        .table_name(&state.table_name)
+        .item("PK", AttributeValue::S(String::from("USER#JAMESEASTHAM")))
+        .item(
+            "SK",
+            AttributeValue::S(String::from(format!("TODO#{0}", &todo.id.to_uppercase()))),
+        )
+        .item("text", AttributeValue::S(todo.text.to_string()))
+        .item("id", AttributeValue::S(todo.id.to_string()))
+        .item("completed", AttributeValue::Bool(todo.completed))
+        .send()
+        .await;
+
+    ()
+}
+
 async fn post_todo(
     State(state): State<Arc<AppState>>,
     Json(input): Json<CreateTodo>,
@@ -198,6 +260,18 @@ async fn post_todo(
     Json(json!(todo))
 }
 
+/// This method can be used as a "template tag", i.e. a method that
+/// can be called directly from a template.
+fn nav(out: &mut impl Write) -> std::io::Result<()> {
+    templates::nav_html(
+        out,
+        &[
+            ("ructe", "https://crates.io/crates/ructe"),
+            ("axum", "https://crates.io/crates/axum"),
+        ],
+    )
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 struct CreateTodo {
     text: String,
@@ -209,3 +283,5 @@ pub struct Todo {
     text: String,
     completed: bool,
 }
+
+include!(concat!(env!("OUT_DIR"), "/templates.rs"));
