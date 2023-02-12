@@ -45,3 +45,7 @@ An order validation pipeline implemented using Step Functions & Rust. A look at 
 [Link](./src/sqs-sourced-lambda)
 
 A Lambda function sourced by SQS.
+
+## Additional Resources
+
+- [Serverless Rust YouTube series](https://www.youtube.com/watch?v=i6FKvK5JQ8o&list=PLCOG9xkUD90KQ1IPQT_m1NbPRXXRFb63s)
