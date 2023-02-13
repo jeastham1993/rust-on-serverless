@@ -22,7 +22,7 @@ sam deploy --guided
 
 [Link](./src/simple-serverless-api)
 
-A simple API built with API Gateway and single purpose Lambda function handlers.
+A simple API built with API Gateway and single purpose Lambda function handlers. This example also demonstrates how to unit test your serverless applications, using the `TestConnection` struct provided by the AWS CDK and using [Mockall](https://docs.rs/mockall/latest/mockall/).
 
 ### HTTP Web Server on Lambda
 
@@ -35,6 +35,10 @@ An [Axum](https://github.com/tokio-rs/axum) web server running on AWS Lambda.
 [Link](./src/axum-lambda-web-server-side-rendering)
 
 An [Axum](https://github.com/tokio-rs/axum) web server running on AWS Lambda. Server side rendering implemented using [Ructe](https://github.com/kaj/ructe).
+
+This example also includes the use of a custom authorizer implemented at the API Gateway level. When deploying the stack, you can specify the password to use for the login page. Once deployed, navigate to the `/login` endpoint and use the specified password to login.
+
+The login page generates and stores a session token in DynamoDB, with a TTL 5 minutes in the future. The custom authorizer checks DynamoDB to see if a valid token exists.
 
 ### Serverless ToDo API
 
