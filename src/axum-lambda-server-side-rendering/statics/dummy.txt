@@ -1,0 +1,1 @@
+A dummy file to ensure the statics folder is comitted to Git
