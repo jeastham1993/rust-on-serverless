@@ -44,7 +44,7 @@ The login page generates and stores a session token in DynamoDB, with a TTL 5 mi
 
 [Link](./src/serverless-todo)
 
-A fulley serverless ToDo API implemented with API Gateway, Lambda & DynamoDB. Demonstrates how to package multiple handlers in the same project.
+A fully serverless ToDo API implemented with API Gateway, Lambda & DynamoDB. Demonstrates how to package multiple handlers in the same project.
 
 This example also demonstrates how hexagaonal architecture practices and domain driven design can be applied to an application written in Rust.
 
