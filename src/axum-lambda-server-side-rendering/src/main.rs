@@ -8,7 +8,6 @@ use axum::http::StatusCode;
 use axum::response::Redirect;
 use axum::{
     error_handling::HandleErrorLayer,
-    extract::Path,
     extract::State,
     response::{IntoResponse, Json},
     routing::get,
@@ -20,8 +19,8 @@ use services::services::{Todo, CreateTodo, TodoService};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tower::{BoxError, ServiceBuilder};
 use tower_http::trace::TraceLayer;
+use tower_cookies::{Cookie, CookieManagerLayer, Cookies};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use uuid::Uuid;
 
 #[macro_use]
 mod axum_ructe;
@@ -71,6 +70,7 @@ async fn main() -> Result<(), Error> {
                     .layer(TraceLayer::new_for_http())
                     .into_inner(),
             )
+            .layer(CookieManagerLayer::new())
             .with_state(shared_state);
 
         run(app).await;
@@ -95,6 +95,7 @@ async fn main() -> Result<(), Error> {
                     .layer(TraceLayer::new_for_http())
                     .into_inner(),
             )
+            .layer(CookieManagerLayer::new())
             .with_state(shared_state);
 
         let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
@@ -113,7 +114,9 @@ async fn root() -> Json<Value> {
 }
 
 /// Home page handler; just render a template with some arguments.
-async fn home_page(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+async fn home_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> impl IntoResponse {
+    tracing::debug!("Creating {}", form.text.clone());
+
     let items = state.todo_service.list_todos().await;
 
     render!(templates::page_html, items)
