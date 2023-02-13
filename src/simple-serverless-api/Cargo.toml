@@ -1,0 +1,30 @@
+[package]
+name = "rust-sample"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+aws-config = "0.54.1"
+aws-sdk-dynamodb = "0.24.0"
+aws-smithy-client = { version = "0.54.1", features = ["test-util"] }
+lambda_http = "0.7.3"
+tokio = { version = "1.21.1", features = ["full"] }
+
+[dev-dependencies]
+aws-smithy-http = "0.54.1"
+aws-types = { version = "0.52.0", features = ["hardcoded-credentials"] }
+http = "0.2.8"
+
+[[bin]]
+name = "create"
+path = "src/bin/create_handler.rs"
+
+[[bin]]
+name = "get"
+path = "src/bin/get_handler.rs"
+
+[[bin]]
+name = "delete"
+path = "src/bin/delete_handler.rs"

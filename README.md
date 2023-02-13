@@ -12,6 +12,12 @@ As Rust is intended as a C/C++ like language, isn't particularly object orientat
 
 A simple HTTP web server implemented in Rust.
 
+### Simple Serverless API
+
+[Link](./src/simple-serverless-api)
+
+A simple API built with API Gateway and single purpose Lambda function handlers.
+
 ### Serverless ToDo API
 
 [Link](./src/serverless-todo)
