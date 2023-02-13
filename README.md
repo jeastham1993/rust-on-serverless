@@ -18,6 +18,12 @@ make build
 sam deploy --guided
 ```
 
+### Simple Serverless API
+
+[Link](./src/simple-serverless-api)
+
+A simple API built with API Gateway and single purpose Lambda function handlers.
+
 ### HTTP Web Server on Lambda
 
 [Link](./src/axum-lambda-web)
@@ -29,12 +35,6 @@ An [Axum](https://github.com/tokio-rs/axum) web server running on AWS Lambda.
 [Link](./src/axum-lambda-web-server-side-rendering)
 
 An [Axum](https://github.com/tokio-rs/axum) web server running on AWS Lambda. Server side rendering implemented using [Ructe](https://github.com/kaj/ructe).
-
-### Simple Serverless API
-
-[Link](./src/simple-serverless-api)
-
-A simple API built with API Gateway and single purpose Lambda function handlers.
 
 ### Serverless ToDo API
 
