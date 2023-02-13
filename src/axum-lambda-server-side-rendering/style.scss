@@ -1,0 +1,22 @@
+html, body {
+    font-family: 'Roboto', sans-serif;
+}
+
+h1 {
+    margin: 0 0 1ex;
+}
+figure {
+    float: right;
+    margin: 0 0 1ex 1em;
+}
+p {
+    margin: 0 0 1em;
+}
+
+.error {
+    main {
+        background: linear-gradient(#fff, #fff, #eee, #ccc, #888) padding-box;
+        border: solid 1px rgba(white, 0.3);
+        border-width: 0 2px 2px 1px;
+    }
+}

@@ -1,0 +1,193 @@
+{
+  "Comment": "A description of my state machine",
+  "StartAt": "Map",
+  "States": {
+    "Map": {
+      "Type": "Map",
+      "ItemProcessor": {
+        "ProcessorConfig": {
+          "Mode": "INLINE"
+        },
+        "StartAt": "Parse JSON from WebSockets contents",
+        "States": {
+          "Parse JSON from WebSockets contents": {
+            "Type": "Pass",
+            "Next": "Generate JSON from HTTP Body",
+            "Parameters": {
+              "body.$": "States.StringToJson($.body)",
+              "connectionId.$": "$.messageAttributes.connectionId.stringValue"
+            }
+          },
+          "Generate JSON from HTTP Body": {
+            "Type": "Pass",
+            "Next": "Validate",
+            "Parameters": {
+              "data.$": "States.StringToJson($.body.data)",
+              "connectionId.$": "$.connectionId"
+            }
+          },
+          "Validate": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "Payload.$": "$",
+              "FunctionName": "${ValidateOrderFunctionArn}"
+            },
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException",
+                  "Lambda.TooManyRequestsException"
+                ],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 6,
+                "BackoffRate": 2
+              }
+            ],
+            "Catch": [
+              {
+                "ErrorEquals": [
+                  "&alloc::string::String"
+                ],
+                "ResultPath": "$.data",
+                "Next": "Validation Failure Queue"
+              }
+            ],
+            "Next": "Price",
+            "ResultSelector": {
+              "response.$": "$.Payload"
+            },
+            "OutputPath": "$.response"
+          },
+          "Price": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "Payload.$": "$",
+              "FunctionName": "${PriceOrderFunctionArn}"
+            },
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException",
+                  "Lambda.TooManyRequestsException"
+                ],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 6,
+                "BackoffRate": 2
+              }
+            ],
+            "Next": "Format for Dynamo",
+            "ResultPath": "$.Payload"
+          },
+          "Format for Dynamo": {
+            "Type": "Pass",
+            "Parameters": {
+              "PK.$": "$.data.order_number",
+              "Data.$": "States.JsonToString($.data)"
+            },
+            "ResultPath": "$.formatted",
+            "Next": "DynamoDB PutItem"
+          },
+          "DynamoDB PutItem": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::dynamodb:putItem",
+            "Parameters": {
+              "TableName": "${OrdersTable}",
+              "Item": {
+                "PK": {
+                  "S.$": "$.formatted.PK"
+                },
+                "Item": {
+                  "S.$": "$.formatted.Data"
+                }
+              }
+            },
+            "Next": "Send WebSocket Response",
+            "ResultPath": "$.dynamoDbResponse"
+          },
+          "Send WebSocket Response": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "OutputPath": "$.Payload",
+            "Parameters": {
+              "FunctionName": "${SendWebSocketResponseFunctionArn}",
+              "Payload": {
+                "connection_id.$": "$.connectionId",
+                "data": "Order placed"
+              }
+            },
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException",
+                  "Lambda.TooManyRequestsException"
+                ],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 6,
+                "BackoffRate": 2
+              }
+            ],
+            "End": true
+          },
+          "Validation Failure Queue": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::sqs:sendMessage",
+            "Parameters": {
+              "MessageBody.$": "$",
+              "QueueUrl": "${ValidationFailureQueueUrl}"
+            },
+            "Next": "Retrieve Error Details",
+            "ResultPath": "$.sqsResponse"
+          },
+          "Retrieve Error Details": {
+            "Type": "Pass",
+            "Next": "Format WebSocket Response",
+            "Parameters": {
+              "connectionId.$": "$.connectionId",
+              "errorDetails.$": "States.StringToJson($.data.Cause)"
+            }
+          },
+          "Format WebSocket Response": {
+            "Type": "Pass",
+            "Next": "Send Order Failed Response",
+            "Parameters": {
+              "connection_id.$": "$.connectionId",
+              "data.$": "States.Format('Order Failed: {}', $.errorDetails.errorMessage)"
+            }
+          },
+          "Send Order Failed Response": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "OutputPath": "$.Payload",
+            "Parameters": {
+              "FunctionName": "arn:aws:lambda:eu-west-1:521936459218:function:rust-workflow-functions-SendWebSocketResponseFunct-KGoMnf5qxos8",
+              "Payload.$": "$"
+            },
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException",
+                  "Lambda.TooManyRequestsException"
+                ],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 6,
+                "BackoffRate": 2
+              }
+            ],
+            "End": true
+          }
+        }
+      },
+      "End": true
+    }
+  }
+}

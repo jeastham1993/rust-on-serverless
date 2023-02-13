@@ -1,0 +1,396 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  rust-sam-app
+  Sample SAM Template for rust-sam-app
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+
+Resources:
+##########################################################################
+#   Functions                                                            #
+##########################################################################
+  ValidateOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: target/lambda/validate_order_function/
+      Handler: bootstrap.is.the.handler
+      Runtime: provided.al2
+      Architectures:
+        - x86_64
+
+  PriceOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: target/lambda/price_order_function/
+      Handler: bootstrap.is.the.handler
+      Runtime: provided.al2
+      Architectures:
+        - x86_64
+
+  SendWebSocketResponseFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: target/lambda/send_web_socket_response/
+      Handler: bootstrap.is.the.handler
+      Role:
+        Fn::GetAtt:
+          - WebsocketResponseServiceRole
+          - Arn
+      Runtime: provided.al2
+      Environment:
+        Variables:
+          API_ID: !Ref OrderProcessingWebSocketApi
+          REGION: !Ref AWS::Region
+          API_STAGE: production
+      Architectures:
+        - x86_64
+
+##########################################################################
+#   Workflow                                                             #
+##########################################################################
+        
+  StateMachineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join [ "/", [ "stepfunctions", OrderProcessingPipeline]]
+
+  OrderProcessingPipeline:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionUri: orderprocessing.asl.json
+      Role:
+        Fn::GetAtt: [ StatesExecutionRole, Arn ]
+      Type: EXPRESS
+      Tracing:
+        Enabled: true
+      Logging:
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt StateMachineLogGroup.Arn
+        IncludeExecutionData: true
+        Level: 'ALL'
+      DefinitionSubstitutions:
+        ValidateOrderFunctionArn: !GetAtt ValidateOrderFunction.Arn
+        PriceOrderFunctionArn: !GetAtt PriceOrderFunction.Arn
+        SendWebSocketResponseFunctionArn: !GetAtt SendWebSocketResponseFunction.Arn
+        ValidationFailureQueueUrl: !Ref ValidationFailureQueue
+        OrdersTable: !Ref OrderProcessingTable
+
+  ValidationFailureQueue:
+    Type: AWS::SQS::Queue
+
+##########################################################################
+#   Roles                                                               #
+##########################################################################
+
+  WebsocketResponseServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  SQSWebsocketResponseServiceRoleDefaultPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action: execute-api:ManageConnections
+            Effect: Allow
+            Resource:
+              Fn::Join:
+                - ""
+                - - "arn:"
+                  - Ref: AWS::Partition
+                  - ":execute-api:"
+                  - Ref: AWS::Region
+                  - ":"
+                  - Ref: AWS::AccountId
+                  - ":"
+                  - Ref: OrderProcessingWebSocketApi
+                  - /production/POST/*
+          - Action:
+              - sqs:ReceiveMessage
+              - sqs:ChangeMessageVisibility
+              - sqs:GetQueueUrl
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - InboundOrderQueue
+                - Arn
+        Version: "2012-10-17"
+      PolicyName: SQSWebsocketResponseServiceRoleDefaultPolicy
+      Roles:
+        - Ref: WebsocketResponseServiceRole
+
+  StatesExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - !Sub states.${AWS::Region}.amazonaws.com
+            Action: "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        - PolicyName: SFPermissions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "dynamodb:PutItem"
+                Resource:
+                  - !GetAtt OrderProcessingTable.Arn
+              - Effect: Allow
+                Action:
+                  - "sqs:SendMessage"
+                Resource:
+                  - !GetAtt ValidationFailureQueue.Arn
+              - Effect: Allow
+                Action:
+                  - "lambda:InvokeFunction"
+                Resource:
+                  - !GetAtt ValidateOrderFunction.Arn
+                  - !GetAtt PriceOrderFunction.Arn
+                  - !GetAtt SendWebSocketResponseFunction.Arn
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogDelivery"
+                  - "logs:GetLogDelivery"
+                  - "logs:UpdateLogDelivery"
+                  - "logs:DeleteLogDelivery"
+                  - "logs:ListLogDeliveries"
+                  - "logs:PutResourcePolicy"
+                  - "logs:DescribeResourcePolicies"
+                  - "logs:DescribeLogGroups"
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - "xray:PutTraceSegments"
+                  - "xray:PutTelemetryRecords"
+                  - "xray:GetSamplingRules"
+                  - "xray:GetSamplingTargets"
+                Resource: "*"
+
+##########################################################################
+#   State                                                                #
+##########################################################################
+
+  OrderProcessingTable:
+    Type: AWS::Serverless::SimpleTable # More info about SimpleTable Resource: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-simpletable.html
+    Properties:
+      PrimaryKey:
+        Name: PK
+        Type: String
+
+##########################################################################
+#   Inbound                                                              #
+##########################################################################
+
+  InboundOrderQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
+      QueueName: InboundOrderQueue.fifo
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt InboundOrderQueueDLQ.Arn
+        maxReceiveCount: 5
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+
+  #DLQ for source
+  InboundOrderQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
+      QueueName: InboundOrderDLQ.fifo
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+
+  # Role for EventBridge Pipes to read from SQS and launch SFN
+  EventBridgePipesRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - pipes.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: '*'
+        - PolicyName: ReadSQS
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'sqs:ReceiveMessage'
+                  - 'sqs:DeleteMessage'
+                  - 'sqs:GetQueueAttributes'
+                Resource: !GetAtt InboundOrderQueue.Arn
+        - PolicyName: ExecuteSFN
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'states:StartExecution'
+                Resource: !Ref OrderProcessingPipeline
+
+  OrderProcessingPipe:
+    Type: AWS::Pipes::Pipe
+    Properties:
+      Name: 'OrderProcessingPipe'
+      RoleArn: !GetAtt EventBridgePipesRole.Arn
+      Source: !GetAtt InboundOrderQueue.Arn
+      SourceParameters:
+        SqsQueueParameters:
+          BatchSize: 1
+      Target: !Ref OrderProcessingPipeline
+      TargetParameters:
+        StepFunctionStateMachineParameters:
+          InvocationType: FIRE_AND_FORGET
+
+  OrderProcessingWebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Description: Send websocket data to SQS which is then processed by a Lambda
+      Name: OrderProcessingWebSocketApi
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: $request.body.action
+
+  OrderProcessingWebSocketApiProdStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId:
+        Ref: OrderProcessingWebSocketApi
+      StageName: production
+      AutoDeploy: true
+
+  ApiGatewayWebsocketSQSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+        Version: "2012-10-17"
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action: sqs:SendMessage
+                Effect: Allow
+                Resource:
+                  Fn::GetAtt:
+                    - InboundOrderQueue
+                    - Arn
+            Version: "2012-10-17"
+          PolicyName: APIGatewaySQSSendMessagePolicy
+  Integration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Ref: OrderProcessingWebSocketApi
+      IntegrationType: AWS
+      ConnectionType: INTERNET
+      CredentialsArn:
+        Fn::GetAtt:
+          - ApiGatewayWebsocketSQSRole
+          - Arn
+      IntegrationMethod: POST
+      IntegrationUri:
+        Fn::Join:
+          - ""
+          - - "arn:aws:apigateway:"
+            - Ref: AWS::Region
+            - :sqs:path/
+            - Ref: AWS::AccountId
+            - /
+            - Fn::GetAtt:
+                - InboundOrderQueue
+                - QueueName
+      PassthroughBehavior: NEVER
+      RequestParameters:
+        integration.request.header.Content-Type: "'application/x-www-form-urlencoded'"
+      RequestTemplates:
+        $default: Action=SendMessage&MessageGroupId=$input.path('$.MessageGroupId')&MessageDeduplicationId=$context.requestId&MessageAttribute.1.Name=connectionId&MessageAttribute.1.Value.StringValue=$context.connectionId&MessageAttribute.1.Value.DataType=String&MessageAttribute.2.Name=requestId&MessageAttribute.2.Value.StringValue=$context.requestId&MessageAttribute.2.Value.DataType=String&MessageBody=$input.json('$')
+      TemplateSelectionExpression: \$default
+  SQSRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Ref: OrderProcessingWebSocketApi
+      RouteKey: $default
+      Target:
+        Fn::Join:
+          - ""
+          - - integrations/
+            - Ref: Integration
+
+##########################################################################
+#   Cloudwatch Logs                                                       #
+##########################################################################
+
+  InboundOrderApiAccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: InboundOrderApi-Access-Logs
+      RetentionInDays: 1
+
+##########################################################################
+#   Outputs                                                              #
+##########################################################################
+
+Outputs:
+  WebsocketURI:
+    Description: "API Gateway websocket endpoint URL for Prod stage"
+    Value:
+      Fn::Join:
+        - ""
+        - - wss://
+          - Ref: OrderProcessingWebSocketApi
+          - .execute-api.
+          - Ref: AWS::Region
+          - "."
+          - Ref: AWS::URLSuffix
+          - /production
+    Export:
+      Name: WebsocketURI
+  PutFunction:
+    Description: "Validate Order Lambda Function ARN"
+    Value: !GetAtt ValidateOrderFunction.Arn

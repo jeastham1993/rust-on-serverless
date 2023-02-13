@@ -1,16 +1,34 @@
-# Learning Rust
+# Rust on Serverless
 
-Historically, I've always worked with .NET. An object orientated language. This repo is my central place to challenge this OOP view on the world and start working with a different language.
+![](./assets/rust-programming.jpg)
 
-As Rust is intended as a C/C++ like language, isn't particularly object orientated and generally couldn't possibly be further from .NET it seemed a logical choice. Throw in the performance, especially in resource constrained environments, and my serverless brain is intrigued.
+*A short disclaimer, I am learning in public with this repository. The samples may not represent best practices for the Rust language. If you spot anything that could be done better, please reach out and let me know.*
+
+Historically, I've always worked with .NET, an object orientated language. This repo is my central place to challenge this object oriented view on the world and start working with a different language. All this learning is within the context of AWS Serverless technologies.
+
+One of the original use cases for Rust is as an embedded systems programming language. Embedded systems are typically extremely resource contrained. When you consider the pricing and execution model of Lambda, it can also be considered a resource contrained language. Making Rust a perfect fit. That perfect performance fit can be seen in [these benchmarks](https://github.com/aws-samples/serverless-rust-demo).
 
 ## Samples
 
-### HTTP Web Server
+All the samples listed below use a combination of [cargo lambda](https://www.cargo-lambda.info/) and [AWS SAM](https://aws.amazon.com/serverless/sam/) to compile and deploy. If you want to deploy the examples into your own account, from the root of the sample directory, run `make build` and then `sam deploy --guided`. For example, if I wanted to deploy the 'HTTP Web Server on Lambda' example I would run:
 
-[Link](./src/actix-gcd)
+``` bash
+cd src/axum-lambda-web
+make build
+sam deploy --guided
+```
 
-A simple HTTP web server implemented in Rust.
+### HTTP Web Server on Lambda
+
+[Link](./src/axum-lambda-web)
+
+An [Axum](https://github.com/tokio-rs/axum) web server running on AWS Lambda.
+
+### Server Side Rendering on Lambda
+
+[Link](./src/axum-lambda-web-server-side-rendering)
+
+An [Axum](https://github.com/tokio-rs/axum) web server running on AWS Lambda. Server side rendering implemented using [Ructe](https://github.com/kaj/ructe).
 
 ### Simple Serverless API
 
@@ -22,10 +40,21 @@ A simple API built with API Gateway and single purpose Lambda function handlers.
 
 [Link](./src/serverless-todo)
 
-A ToDo API implemented with API Gateway, Lambda & DynamoDB
+A fulley serverless ToDo API implemented with API Gateway, Lambda & DynamoDB. Demonstrates how to package multiple handlers in the same project.
+
+This example also demonstrates how hexagaonal architecture practices and domain driven design can be applied to an application written in Rust.
+
+### Step Functions Lambda
+
+An order validation pipeline implemented using Step Functions & Rust. A look at how functional programming concepts can work with Rust & AWS Serverless technologies.
 
 ### SQS -> AWS Lambda
 
 [Link](./src/sqs-sourced-lambda)
 
 A Lambda function sourced by SQS.
+
+## Additional Resources
+
+- [Serverless Rust YouTube series](https://www.youtube.com/watch?v=i6FKvK5JQ8o&list=PLCOG9xkUD90KQ1IPQT_m1NbPRXXRFb63s)
+- [Cargo Lambda CLI](https://www.cargo-lambda.info/)

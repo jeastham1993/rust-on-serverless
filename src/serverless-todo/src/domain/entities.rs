@@ -63,6 +63,7 @@ impl ToDo {
     ) -> Result<ToDo, Vec<ValidationError>> {
         let mut errors: Vec<ValidationError> = Vec::new();
 
+
         let title_res = ToDo::check_title(&title);
         let owner_res = ToDo::check_owner_id(&owner_id);
 
@@ -468,6 +469,21 @@ mod tests {
 
     #[test]
     fn new_id_should_return_valid_to_do_id() {
+        let option_1 = Some("Hello");
+        let option_2: Option<i32> = Some(123456);
+        let option_3: Option<i32> = Option::None;
+
+        let valid_res = option_1.zip(option_2).map(|(opt1, opt2)| -> String {
+            format!("{opt1} - {opt2}")
+        });
+
+        let none_res = option_1.zip(option_3).map(|(opt1, opt2)| -> String {
+            format!("{opt1} - {opt2}")
+        });
+
+        assert_eq!(valid_res, Option::Some("Hello - 123456".to_string()));
+        assert_eq!(none_res, Option::None);
+
         let to_do_id = ToDoId::new();
 
         assert_eq!(to_do_id.to_string().len(), 36)
