@@ -14,6 +14,11 @@ Globals:
     Architectures:
       - x86_64
 
+Parameters:
+  LoginPassword: 
+    Description: The password to use for the API
+    Type: String
+
 Resources:
   Table:
     Type: AWS::DynamoDB::Table
@@ -29,6 +34,9 @@ Resources:
           KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
 
   ApiFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
@@ -57,11 +65,49 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceAccount: !Ref 'AWS::AccountId'
 
+  LoginFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: target/lambda/axum_lambda/
+      Handler: bootstrap.is.the.handler
+      Events:
+        RustApi:
+          Type: HttpApi # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /login
+            Method: ANY
+            ApiId: !Ref RustSsrHttpApi
+            Auth:
+               Authorizer: NONE
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Table
+          LOGIN_FUNCTION: "Y"
+          PASSWORD: !Ref LoginPassword
+      Policies:
+        - DynamoDBCrudPolicy: # More info about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+            TableName: !Ref Table
+
+  ApiGatewayLoginInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt LoginFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+
   AuthorizerFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
       CodeUri: target/lambda/authorizer/
       Handler: bootstrap.is.the.handler
+      Environment:
+        Variables:
+          PASSWORD: !Ref LoginPassword
+          TABLE_NAME: !Ref Table
+      Policies:
+        - DynamoDBReadPolicy: # More info about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+            TableName: !Ref Table
 
   ApiGatewayInvokePermission:
     Type: AWS::Lambda::Permission

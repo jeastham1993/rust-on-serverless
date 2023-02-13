@@ -16,7 +16,7 @@ pub mod services {
             }
         }
 
-        pub async fn list_todos(&self) -> Vec<Todo> {
+        pub async fn list_todos(&self, username: String) -> Vec<Todo> {
             let res = &self
                 .client
                 .query()
@@ -24,7 +24,7 @@ pub mod services {
                 .key_condition_expression("PK = :hashKey")
                 .expression_attribute_values(
                     ":hashKey",
-                    AttributeValue::S(String::from("USER#JAMESEASTHAM")),
+                    AttributeValue::S(format!("USER#{}", username.to_uppercase())),
                 )
                 .send()
                 .await;
@@ -48,7 +48,7 @@ pub mod services {
             items
         }
     
-        pub async fn create_todo(&self, input: CreateTodo) {
+        pub async fn create_todo(&self, username: String, input: CreateTodo) {
             let todo = Todo {
                 completed: false,
                 text: input.text.clone(),
@@ -59,7 +59,7 @@ pub mod services {
                 .client
                 .put_item()
                 .table_name(&self.table_name)
-                .item("PK", AttributeValue::S(String::from("USER#JAMESEASTHAM")))
+                .item("PK", AttributeValue::S(format!("USER#{}", username.to_uppercase())))
                 .item(
                     "SK",
                     AttributeValue::S(String::from(format!("TODO#{0}", &todo.id.to_uppercase()))),
@@ -82,5 +82,11 @@ pub mod services {
     #[derive(Debug, Deserialize, Serialize)]
     pub struct CreateTodo {
         pub text: String,
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct LoginCommand {
+        pub username: String,
+        pub password: String
     }
 }
