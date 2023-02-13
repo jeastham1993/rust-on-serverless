@@ -52,6 +52,10 @@ This example also demonstrates how hexagaonal architecture practices and domain 
 
 An order validation pipeline implemented using Step Functions & Rust. A look at how functional programming concepts can work with Rust & AWS Serverless technologies.
 
+This example includes a web socket API at the server side that integrates directly with Amazon SQS. Event Bridge Pipes is then used to take the message from SQS and invoke the order validation Step Function. On completion, a Lambda function sends a message back to the client over the web sockets connection.
+
+A CLI client exists under the `client` folder.
+
 ### SQS -> AWS Lambda
 
 [Link](./src/sqs-sourced-lambda)
