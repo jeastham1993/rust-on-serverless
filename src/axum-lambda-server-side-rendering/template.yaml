@@ -41,13 +41,46 @@ Resources:
           Properties:
             Path: /{proxy+}
             Method: ANY
+            ApiId: !Ref RustSsrHttpApi
       Environment:
         Variables:
           TABLE_NAME: !Ref Table
       Policies:
         - DynamoDBCrudPolicy: # More info about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
             TableName: !Ref Table
-Outputs:
-  ServerlessApi:
-    Description: "API Gateway endpoint URL for Prod stage for Put function"
-    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/"
+
+  ApiGatewayInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt ApiFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+
+  AuthorizerFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: target/lambda/authorizer/
+      Handler: bootstrap.is.the.handler
+
+  ApiGatewayInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt AuthorizerFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+  
+  RustSsrHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Auth:
+        Authorizers: 
+          LambdaAuthorizer:
+            EnableSimpleResponses: true
+            AuthorizerPayloadFormatVersion: 2.0
+            FunctionArn: !GetAtt AuthorizerFunction.Arn
+            Identity:
+              Headers:
+                - Cookie
+        DefaultAuthorizer: LambdaAuthorizer

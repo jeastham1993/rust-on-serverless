@@ -115,8 +115,6 @@ async fn root() -> Json<Value> {
 
 /// Home page handler; just render a template with some arguments.
 async fn home_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> impl IntoResponse {
-    tracing::debug!("Creating {}", form.text.clone());
-
     let items = state.todo_service.list_todos().await;
 
     render!(templates::page_html, items)
