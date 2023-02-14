@@ -1,22 +1,18 @@
-mod services;
 pub mod auth;
+mod services;
 
 use std::{env, io::Write};
 
 use auth::auth::AuthService;
 use aws_config::SdkConfig;
-use aws_sdk_dynamodb::{model::AttributeValue, Client};
+use aws_sdk_dynamodb::Client;
 use axum::http::StatusCode;
 use axum::response::Redirect;
 use axum::{
-    error_handling::HandleErrorLayer,
-    extract::State,
-    response::{IntoResponse, Json},
-    routing::get,
-    Form, Router,
+    error_handling::HandleErrorLayer, extract::State, response::IntoResponse, routing::get, Form,
+    Router,
 };
-use lambda_http::{aws_lambda_events::serde::Deserialize, run, Error};
-use serde_json::{json, Value};
+use lambda_http::{run, Error};
 use services::services::{CreateTodo, LoginCommand, Todo, TodoService};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tower::{BoxError, ServiceBuilder};
@@ -27,13 +23,41 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 #[macro_use]
 mod axum_ructe;
 
+macro_rules! configure_routes {
+    () => {
+        // The macro will expand into the contents of this block.
+        Router::new()
+            .route("/login", get(login).post(login_post))
+            .route("/home", get(home_page).post(home_page_post))
+            // Add middleware to all layers
+            .layer(
+                ServiceBuilder::new()
+                    .layer(HandleErrorLayer::new(|error: BoxError| async move {
+                        if error.is::<tower::timeout::error::Elapsed>() {
+                            Ok(StatusCode::REQUEST_TIMEOUT)
+                        } else {
+                            Err((
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                format!("Unhandled internal error: {}", error),
+                            ))
+                        }
+                    }))
+                    .timeout(Duration::from_secs(10))
+                    .layer(TraceLayer::new_for_http())
+                    .into_inner(),
+            )
+            .layer(CookieManagerLayer::new())
+    };
+}
+
 struct AppState {
     todo_service: TodoService,
-    auth_service: AuthService
+    auth_service: AuthService,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    // Setup tracing
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -55,80 +79,13 @@ async fn main() -> Result<(), Error> {
     let is_lambda = &env::var("LAMBDA_TASK_ROOT");
 
     if is_lambda.is_ok() {
-        let is_login_function = &env::var("LOGIN_FUNCTION");
+        let routes: Router<Arc<AppState>, lambda_http::Body> = configure_routes!();
+        let app = routes.with_state(shared_state);
 
-        if is_login_function.is_ok() {
-            let app = Router::new()
-                .route("/login", get(login).post(login_post))
-                // Add middleware to all layers
-                .layer(
-                    ServiceBuilder::new()
-                        .layer(HandleErrorLayer::new(|error: BoxError| async move {
-                            if error.is::<tower::timeout::error::Elapsed>() {
-                                Ok(StatusCode::REQUEST_TIMEOUT)
-                            } else {
-                                Err((
-                                    StatusCode::INTERNAL_SERVER_ERROR,
-                                    format!("Unhandled internal error: {}", error),
-                                ))
-                            }
-                        }))
-                        .timeout(Duration::from_secs(10))
-                        .layer(TraceLayer::new_for_http())
-                        .into_inner(),
-                )
-                .layer(CookieManagerLayer::new())
-                .with_state(shared_state);
-
-            run(app).await;
-        } else {
-            let app = Router::new()
-                .route("/home", get(home_page).post(home_page_post))
-                // Add middleware to all layers
-                .layer(
-                    ServiceBuilder::new()
-                        .layer(HandleErrorLayer::new(|error: BoxError| async move {
-                            if error.is::<tower::timeout::error::Elapsed>() {
-                                Ok(StatusCode::REQUEST_TIMEOUT)
-                            } else {
-                                Err((
-                                    StatusCode::INTERNAL_SERVER_ERROR,
-                                    format!("Unhandled internal error: {}", error),
-                                ))
-                            }
-                        }))
-                        .timeout(Duration::from_secs(10))
-                        .layer(TraceLayer::new_for_http())
-                        .into_inner(),
-                )
-                .layer(CookieManagerLayer::new())
-                .with_state(shared_state);
-
-            run(app).await;
-        }
+        run(app).await;
     } else {
-        let axum_app = Router::new()
-            .route("/login", get(login).post(login_post))
-            .route("/home", get(home_page).post(home_page_post))
-            // Add middleware to all layers
-            .layer(
-                ServiceBuilder::new()
-                    .layer(HandleErrorLayer::new(|error: BoxError| async move {
-                        if error.is::<tower::timeout::error::Elapsed>() {
-                            Ok(StatusCode::REQUEST_TIMEOUT)
-                        } else {
-                            Err((
-                                StatusCode::INTERNAL_SERVER_ERROR,
-                                format!("Unhandled internal error: {}", error),
-                            ))
-                        }
-                    }))
-                    .timeout(Duration::from_secs(10))
-                    .layer(TraceLayer::new_for_http())
-                    .into_inner(),
-            )
-            .layer(CookieManagerLayer::new())
-            .with_state(shared_state);
+        let routes: Router<Arc<AppState>, _> = configure_routes!();
+        let axum_app = routes.with_state(shared_state);
 
         let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
         tracing::debug!("listening on {}", addr);
@@ -165,10 +122,7 @@ async fn home_page_post(
         .and_then(|c| c.value().parse().ok())
         .unwrap();
 
-    state
-        .todo_service
-        .create_todo(user, form.0)
-        .await;
+    state.todo_service.create_todo(user, form.0).await;
 
     Redirect::to("/home")
 }
@@ -178,7 +132,11 @@ async fn login() -> impl IntoResponse {
     render!(templates::login_html, String::from(""))
 }
 
-async fn login_post(State(state): State<Arc<AppState>>, cookies: Cookies, form: Form<LoginCommand>) -> impl IntoResponse {
+async fn login_post(
+    State(state): State<Arc<AppState>>,
+    cookies: Cookies,
+    form: Form<LoginCommand>,
+) -> impl IntoResponse {
     tracing::debug!("Logging in {}", form.username);
 
     let environment_password = &env::var("PASSWORD").unwrap().to_string();
@@ -191,8 +149,7 @@ async fn login_post(State(state): State<Arc<AppState>>, cookies: Cookies, form: 
         cookies.add(Cookie::new("session_token", session_token));
 
         Redirect::to("/home")
-    }
-    else {
+    } else {
         Redirect::to("/login")
     }
 }
