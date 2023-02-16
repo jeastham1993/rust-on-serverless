@@ -13,12 +13,14 @@ use axum::{
     Router,
 };
 use lambda_http::{run, Error};
-use services::services::{CreateTodo, LoginCommand, Todo, TodoService};
+use services::services::{CompleteTodo, CreateTodo, DeleteTodo, LoginCommand, Todo, TodoService};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tower::{BoxError, ServiceBuilder};
 use tower_cookies::{Cookie, CookieManagerLayer, Cookies};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+use crate::services::services::TodoHomePageView;
 
 #[macro_use]
 mod axum_ructe;
@@ -29,6 +31,8 @@ macro_rules! configure_routes {
         Router::new()
             .route("/login", get(login).post(login_post))
             .route("/home", get(home_page).post(home_page_post))
+            .route("/complete", get(home_page).post(complete_todo))
+            .route("/delete-todo", get(home_page).post(delete_todo))
             // Add middleware to all layers
             .layer(
                 ServiceBuilder::new()
@@ -107,7 +111,19 @@ async fn home_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> impl
 
     let items = state.todo_service.list_todos(user).await;
 
-    render!(templates::page_html, items)
+    render!(
+        templates::page_html,
+        TodoHomePageView {
+            active: items.clone()
+                .into_iter()
+                .filter(|todo| todo.completed == false)
+                .collect(),
+            completed: items.clone()
+                .into_iter()
+                .filter(|todo| todo.completed == true)
+                .collect()
+        }
+    )
 }
 
 async fn home_page_post(
@@ -142,16 +158,51 @@ async fn login_post(
     let environment_password = &env::var("PASSWORD").unwrap().to_string();
 
     if environment_password == &form.password {
+        tracing::debug!("Auth is valid");
+
         let session_token = state.auth_service.generate_session().await;
 
         cookies.add(Cookie::new("authentication", form.username.clone()));
         cookies.add(Cookie::new("username", form.username.clone()));
         cookies.add(Cookie::new("session_token", session_token));
 
+        tracing::debug!("Login success");
+
         Redirect::to("/home")
     } else {
+        tracing::debug!("Login failed, redirecting to login");
         Redirect::to("/login")
     }
+}
+
+async fn complete_todo(
+    State(state): State<Arc<AppState>>,
+    cookies: Cookies,
+    form: Form<CompleteTodo>,
+) -> impl IntoResponse {
+    let user = cookies
+        .get("username")
+        .and_then(|c| c.value().parse().ok())
+        .unwrap();
+
+    state.todo_service.complete(user, &form.id).await;
+
+    Redirect::to("/home")
+}
+
+async fn delete_todo(
+    State(state): State<Arc<AppState>>,
+    cookies: Cookies,
+    form: Form<DeleteTodo>,
+) -> impl IntoResponse {
+    let user = cookies
+        .get("username")
+        .and_then(|c| c.value().parse().ok())
+        .unwrap();
+
+    state.todo_service.delete_todo(user, &form.id).await;
+
+    Redirect::to("/home")
 }
 
 /// This method can be used as a "template tag", i.e. a method that

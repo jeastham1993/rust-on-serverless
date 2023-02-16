@@ -17,6 +17,8 @@ pub mod auth {
         }
 
         pub async fn generate_session(&self) -> String {
+            tracing::debug!("Generating session");
+
             let session_token = Uuid::new_v4().to_string().to_uppercase();
 
             let duration = Duration::from_secs(300);
@@ -25,6 +27,9 @@ pub mod auth {
             let epoch_time = start
                 .duration_since(UNIX_EPOCH)
                 .expect("Time went backwards");
+
+            tracing::debug!("Expiring on {}", epoch_time.as_secs());
+            tracing::debug!("Storing in {}", &self.table_name);
 
             let res = &self
                 .client
@@ -38,12 +43,11 @@ pub mod auth {
                     "SK",
                     AttributeValue::S(format!("SESSION#{}", session_token.to_uppercase())),
                 )
-                .item(
-                    "TTL",
-                    AttributeValue::N(epoch_time.as_secs().to_string()),
-                )
+                .item("TTL", AttributeValue::N(epoch_time.as_secs().to_string()))
                 .send()
                 .await;
+
+            tracing::debug!("Stored session data");
 
             session_token
         }

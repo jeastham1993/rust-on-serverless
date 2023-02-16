@@ -1,8 +1,8 @@
 @use super::statics::*;
-@use crate::Todo;
+@use crate::TodoHomePageView;
 @use crate::nav;
 
-@(todos: Vec<Todo>)
+@(todos: TodoHomePageView)
 
   <!doctype html>
   <html lang="en">
@@ -23,8 +23,11 @@
     <main class="container mx-auto my-2 w-2/3">
       <form action="/home" method="post">
         <label class="block text-gray-700 text-sm font-bold mb-2" for="text">What do you need to do?</label>
-        <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"  id="text" name="text">
-        <input type="submit" class="bg-red-500 hover:bg-red-700 my-2 float-right text-white font-bold py-2 px-4 rounded" value="Add +" />
+        <input
+          class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          id="text" name="text">
+        <input type="submit" class="bg-red-500 hover:bg-red-700 my-2 float-right text-white font-bold py-2 px-4 rounded"
+          value="Add +" />
       </form>
       <div class="flex flex-row">
         <div class="basis-1/4">
@@ -32,19 +35,74 @@
             <div class="overflow-x-auto sm:-mx-6 lg:-mx-8">
               <div class="py-2 inline-block min-w-full sm:px-6 lg:px-8">
                 <div class="overflow-hidden">
+                  <h2>Active Todos</h2>
                   <table class="min-w-full">
                     <thead class="border-b">
                       <tr>
                         <th scope="col" class="text-sm font-medium text-gray-900 px-6 py-4 text-left">
                           Todo
                         </th>
+                        <th></th>
+                        <th></th>
                       </tr>
                     </thead>
                     <tbody>
                       </tr class="border-b">
-                      @for todo in todos {
+                      @for todo in todos.active {
                       <tr>
                         <td class="text-sm text-gray-900 font-light px-6 py-4 whitespace-nowrap">@todo.text</td>
+                        <td>
+                          <form action="/delete-todo" method="post">
+                            <button
+                              class="bg-red-500 hover:bg-red-700 my-2 float-right text-white font-bold py-2 px-4 rounded"
+                              name="id" value="@todo.id">Delete</button>
+                          </form>
+                        </td>
+                        <td>
+                          <form action="/complete" method="post">
+                            <button
+                              class="bg-red-500 hover:bg-red-700 my-2 float-right text-white font-bold py-2 px-4 rounded"
+                              name="id" value="@todo.id">Complete</button>
+                          </form>
+                        </td>
+                      </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="flex flex-row">
+        <div class="basis-1/4">
+          <div class="flex flex-col">
+            <div class="overflow-x-auto sm:-mx-6 lg:-mx-8">
+              <div class="py-2 inline-block min-w-full sm:px-6 lg:px-8">
+                <div class="overflow-hidden">
+                  <h2>Completed Todos</h2>
+                  <table class="min-w-full">
+                    <thead class="border-b">
+                      <tr>
+                        <th scope="col" class="text-sm font-medium text-gray-900 px-6 py-4 text-left">
+                          Todo
+                        </th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      </tr class="border-b">
+                      @for todo in todos.completed {
+                      <tr>
+                        <td class="text-sm text-gray-900 font-light px-6 py-4 whitespace-nowrap">@todo.text</td>
+                        <td>
+                          <form action="/delete-todo" method="post">
+                            <button
+                              class="bg-red-500 hover:bg-red-700 my-2 float-right text-white font-bold py-2 px-4 rounded"
+                              name="id" value="@todo.id">Delete</button>
+                          </form>
+                        </td>
                       </tr>
                       }
                     </tbody>

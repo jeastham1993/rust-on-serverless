@@ -1,5 +1,5 @@
 pub mod services {
-    use aws_sdk_dynamodb::{Client, model::AttributeValue};
+    use aws_sdk_dynamodb::{model::AttributeValue, Client};
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
 
@@ -47,19 +47,22 @@ pub mod services {
 
             items
         }
-    
+
         pub async fn create_todo(&self, username: String, input: CreateTodo) {
             let todo = Todo {
                 completed: false,
                 text: input.text.clone(),
                 id: Uuid::new_v4().to_string(),
             };
-        
+
             let res = &self
                 .client
                 .put_item()
                 .table_name(&self.table_name)
-                .item("PK", AttributeValue::S(format!("USER#{}", username.to_uppercase())))
+                .item(
+                    "PK",
+                    AttributeValue::S(format!("USER#{}", username.to_uppercase())),
+                )
                 .item(
                     "SK",
                     AttributeValue::S(String::from(format!("TODO#{0}", &todo.id.to_uppercase()))),
@@ -67,6 +70,43 @@ pub mod services {
                 .item("text", AttributeValue::S(todo.text.to_string()))
                 .item("id", AttributeValue::S(todo.id.to_string()))
                 .item("completed", AttributeValue::Bool(todo.completed))
+                .send()
+                .await;
+        }
+        
+
+        pub async fn complete(&self, username: String, id: &String) {
+            let res = &self
+                .client
+                .update_item()
+                .table_name(&self.table_name)
+                .key(
+                    "PK",
+                    AttributeValue::S(format!("USER#{}", username.to_uppercase())),
+                )
+                .key(
+                    "SK",
+                    AttributeValue::S(String::from(format!("TODO#{0}", &id.to_uppercase()))),
+                )
+                .update_expression("SET completed = :completed")
+                .expression_attribute_values(":completed", AttributeValue::Bool(true))
+                .send()
+                .await;
+        }
+
+        pub async fn delete_todo(&self, username: String, id: &String) {
+            let res = &self
+                .client
+                .delete_item()
+                .table_name(&self.table_name)
+                .key(
+                    "PK",
+                    AttributeValue::S(format!("USER#{}", username.to_uppercase())),
+                )
+                .key(
+                    "SK",
+                    AttributeValue::S(String::from(format!("TODO#{0}", &id.to_uppercase()))),
+                )
                 .send()
                 .await;
         }
@@ -79,14 +119,29 @@ pub mod services {
         pub completed: bool,
     }
 
+    pub struct TodoHomePageView {
+        pub active: Vec<Todo>,
+        pub completed: Vec<Todo>
+    }
+
     #[derive(Debug, Deserialize, Serialize)]
     pub struct CreateTodo {
         pub text: String,
     }
 
     #[derive(Debug, Deserialize, Serialize)]
+    pub struct CompleteTodo {
+        pub id: String,
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct DeleteTodo {
+        pub id: String,
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
     pub struct LoginCommand {
         pub username: String,
-        pub password: String
+        pub password: String,
     }
 }
