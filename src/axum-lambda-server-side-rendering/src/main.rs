@@ -86,7 +86,7 @@ async fn main() -> Result<(), Error> {
         let routes: Router<Arc<AppState>, lambda_http::Body> = configure_routes!();
         let app = routes.with_state(shared_state);
 
-        run(app).await;
+        let _ = run(app).await;
     } else {
         let routes: Router<Arc<AppState>, _> = configure_routes!();
         let axum_app = routes.with_state(shared_state);
