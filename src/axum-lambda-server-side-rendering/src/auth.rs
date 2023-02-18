@@ -11,8 +11,8 @@ pub mod auth {
     impl AuthService {
         pub fn new(client: Client, table_name: String) -> AuthService {
             AuthService {
-                client: client,
-                table_name: table_name,
+                client,
+                table_name,
             }
         }
 
@@ -31,7 +31,7 @@ pub mod auth {
             tracing::debug!("Expiring on {}", epoch_time.as_secs());
             tracing::debug!("Storing in {}", &self.table_name);
 
-            let res = &self
+            let _res = &self
                 .client
                 .put_item()
                 .table_name(&self.table_name)

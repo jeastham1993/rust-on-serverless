@@ -11,8 +11,8 @@ pub mod services {
     impl TodoService {
         pub fn new(client: Client, table_name: String) -> TodoService {
             TodoService {
-                client: client,
-                table_name: table_name,
+                client,
+                table_name,
             }
         }
 
@@ -36,7 +36,7 @@ pub mod services {
             query_result
                 .items()
                 .expect("Items to exist")
-                .into_iter()
+                .iter()
                 .for_each(|item| {
                     items.push(Todo {
                         id: item["id"].as_s().unwrap().to_string(),
@@ -55,7 +55,7 @@ pub mod services {
                 id: Uuid::new_v4().to_string(),
             };
 
-            let res = &self
+            let _res = &self
                 .client
                 .put_item()
                 .table_name(&self.table_name)
@@ -65,7 +65,7 @@ pub mod services {
                 )
                 .item(
                     "SK",
-                    AttributeValue::S(String::from(format!("TODO#{0}", &todo.id.to_uppercase()))),
+                    AttributeValue::S(format!("TODO#{0}", &todo.id.to_uppercase())),
                 )
                 .item("text", AttributeValue::S(todo.text.to_string()))
                 .item("id", AttributeValue::S(todo.id.to_string()))
@@ -76,7 +76,7 @@ pub mod services {
         
 
         pub async fn complete(&self, username: String, id: &String) {
-            let res = &self
+            let _res = &self
                 .client
                 .update_item()
                 .table_name(&self.table_name)
@@ -86,7 +86,7 @@ pub mod services {
                 )
                 .key(
                     "SK",
-                    AttributeValue::S(String::from(format!("TODO#{0}", &id.to_uppercase()))),
+                    AttributeValue::S(format!("TODO#{0}", &id.to_uppercase())),
                 )
                 .update_expression("SET completed = :completed")
                 .expression_attribute_values(":completed", AttributeValue::Bool(true))
@@ -95,7 +95,7 @@ pub mod services {
         }
 
         pub async fn delete_todo(&self, username: String, id: &String) {
-            let res = &self
+            let _res = &self
                 .client
                 .delete_item()
                 .table_name(&self.table_name)
@@ -105,7 +105,7 @@ pub mod services {
                 )
                 .key(
                     "SK",
-                    AttributeValue::S(String::from(format!("TODO#{0}", &id.to_uppercase()))),
+                    AttributeValue::S(format!("TODO#{0}", &id.to_uppercase())),
                 )
                 .send()
                 .await;

@@ -7,7 +7,7 @@ use aws_lambda_events::{
 };
 use aws_sdk_dynamodb::{model::AttributeValue, Client};
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
-use serde_json::{json, Map, Value};
+use serde_json::{json};
 
 /// Main function
 #[tokio::main]
@@ -24,7 +24,7 @@ async fn main() -> Result<(), Error> {
 
     let _res = run(service_fn(
         |request: LambdaEvent<ApiGatewayV2CustomAuthorizerV2Request>| {
-            handle_auth(&auth_client, &table_name, request)
+            handle_auth(&auth_client, table_name, request)
         },
     ))
     .await;
@@ -44,7 +44,7 @@ pub async fn handle_auth(
     for cookie in request.payload.cookies {
         tracing::info!("Checking {}", cookie.clone());
 
-        let cookie_parts: Vec<&str> = cookie.split("=").collect();
+        let cookie_parts: Vec<&str> = cookie.split('=').collect();
 
         tracing::info!("First part is {}", cookie_parts[0]);
 

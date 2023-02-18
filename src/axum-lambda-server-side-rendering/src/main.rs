@@ -13,7 +13,7 @@ use axum::{
     Router,
 };
 use lambda_http::{run, Error};
-use services::services::{CompleteTodo, CreateTodo, DeleteTodo, LoginCommand, Todo, TodoService};
+use services::services::{CompleteTodo, CreateTodo, DeleteTodo, LoginCommand, TodoService};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tower::{BoxError, ServiceBuilder};
 use tower_cookies::{Cookie, CookieManagerLayer, Cookies};
@@ -116,11 +116,11 @@ async fn home_page(State(state): State<Arc<AppState>>, cookies: Cookies) -> impl
         TodoHomePageView {
             active: items.clone()
                 .into_iter()
-                .filter(|todo| todo.completed == false)
+                .filter(|todo| !todo.completed)
                 .collect(),
-            completed: items.clone()
+            completed: items
                 .into_iter()
-                .filter(|todo| todo.completed == true)
+                .filter(|todo| todo.completed)
                 .collect()
         }
     )
