@@ -1,0 +1,29 @@
+[package]
+name = "rust-sam-app"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+aws-config = "0.54.1"
+aws-sdk-s3 = "0.24.0"
+aws-smithy-client = { version = "0.54.3", features = ["test-util"] }
+lambda_sqs = "0.2.3"
+tokio = { version = "1.21.1", features = ["full"] }
+tracing = { version = "0.1", features = ["log"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt"] }
+serde = "1.0.152"
+serde_json = "1.0.91"
+aws_lambda_events = "0.7.2"
+lambda_runtime = "0.7.2"
+async-trait = "0.1.51"
+slog = "2.7.0"
+slog-term = "2.9.0"
+slog-async = "2.7.0"
+
+[dev-dependencies]
+aws-smithy-http = "0.52.0"
+aws-types = { version = "0.52.0", features = ["hardcoded-credentials"] }
+http = "0.2.8"
+mockall = "0.11.2"
