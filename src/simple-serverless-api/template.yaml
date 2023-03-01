@@ -20,8 +20,12 @@ Resources:
 
   PutFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: create
     Properties:
-      CodeUri: target/lambda/create/
+      CodeUri: .
       Handler: bootstrap.is.the.handler
       Runtime: provided.al2
       Architectures:
@@ -41,8 +45,12 @@ Resources:
 
   GetFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: get
     Properties:
-      CodeUri: target/lambda/get/
+      CodeUri: .
       Handler: bootstrap.is.the.handler
       Runtime: provided.al2
       Architectures:
@@ -62,8 +70,12 @@ Resources:
 
   DeleteFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: delete
     Properties:
-      CodeUri: target/lambda/delete/
+      CodeUri: .
       Handler: bootstrap.is.the.handler
       Runtime: provided.al2
       Architectures:

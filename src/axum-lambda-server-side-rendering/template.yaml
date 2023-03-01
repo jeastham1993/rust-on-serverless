@@ -40,8 +40,12 @@ Resources:
 
   ApiFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: axum_lambda
     Properties:
-      CodeUri: target/lambda/axum_lambda/
+      CodeUri: .
       Handler: bootstrap.is.the.handler
       Events:
         RustApi:
@@ -67,8 +71,12 @@ Resources:
 
   LoginFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda 
+      BuildProperties:
+        Binary: axum_lambda
     Properties:
-      CodeUri: target/lambda/axum_lambda/
+      CodeUri: .
       Handler: bootstrap.is.the.handler
       Events:
         RustApi:
@@ -98,8 +106,12 @@ Resources:
 
   AuthorizerFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda 
+      BuildProperties:
+        Binary: authorizer
     Properties:
-      CodeUri: target/lambda/authorizer/
+      CodeUri: .
       Handler: bootstrap.is.the.handler
       Environment:
         Variables:

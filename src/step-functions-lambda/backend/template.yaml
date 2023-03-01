@@ -14,9 +14,13 @@ Resources:
 #   Functions                                                            #
 ##########################################################################
   ValidateOrderFunction:
-    Type: AWS::Serverless::Function
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: validate_order_function
     Properties:
-      CodeUri: target/lambda/validate_order_function/
+      CodeUri: .
       Handler: bootstrap.is.the.handler
       Runtime: provided.al2
       Architectures:
@@ -24,8 +28,12 @@ Resources:
 
   PriceOrderFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: price_order_function
     Properties:
-      CodeUri: target/lambda/price_order_function/
+      CodeUri: .
       Handler: bootstrap.is.the.handler
       Runtime: provided.al2
       Architectures:
@@ -33,8 +41,12 @@ Resources:
 
   SendWebSocketResponseFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: send_web_socket_response
     Properties:
-      CodeUri: target/lambda/send_web_socket_response/
+      CodeUri: .
       Handler: bootstrap.is.the.handler
       Role:
         Fn::GetAtt:

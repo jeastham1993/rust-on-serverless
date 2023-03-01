@@ -32,8 +32,12 @@ Resources:
 
   GetToDoFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: get_todo
     Properties:
-      CodeUri: target/lambda/get_todo/
+      CodeUri: .
       Handler: bootstrap.is.the.handler
       Events:
         RustApi:
@@ -50,8 +54,12 @@ Resources:
 
   ListToDosFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: list_todos
     Properties:
-      CodeUri: target/lambda/list_todos/
+      CodeUri: .
       Events:
         RustApi:
           Type: HttpApi # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -66,9 +74,13 @@ Resources:
             TableName: !Ref Table
 
   CreateToDoFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: create_todo
     Properties:
-      CodeUri: target/lambda/create_todo/
+      CodeUri: .
       Handler: bootstrap.is.the.handler
       Events:
         RustApi:
@@ -85,8 +97,12 @@ Resources:
 
   UpdateToDoFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: update_todo
     Properties:
-      CodeUri: target/lambda/update_todo/
+      CodeUri: .
       Handler: bootstrap.is.the.handler
       Events:
         RustApi:

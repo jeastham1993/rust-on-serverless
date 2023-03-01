@@ -32,8 +32,10 @@ Resources:
 
   ApiFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      BuildMethod: rust-cargolambda
     Properties:
-      CodeUri: target/lambda/axum_lambda/
+      CodeUri: .
       Handler: bootstrap.is.the.handler
       FunctionUrlConfig:
          AuthType: NONE
