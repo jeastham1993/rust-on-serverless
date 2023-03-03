@@ -40,6 +40,12 @@ This example also includes the use of a custom authorizer implemented at the API
 
 The login page generates and stores a session token in DynamoDB, with a TTL 5 minutes in the future. The custom authorizer checks DynamoDB to see if a valid token exists.
 
+### Event Validation Proxy
+
+[Link](./src/event-proxy/)
+
+A serverless API for proxying events to Amazon Event Bridge and validating the event schema against a predefined schema in DynamoDB.
+
 ### Serverless ToDo API
 
 [Link](./src/serverless-todo)
