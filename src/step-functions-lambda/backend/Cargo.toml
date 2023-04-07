@@ -54,3 +54,9 @@ name = "test_harness"
 path = "src/bin/lambda/test_harness.rs"
 test = false
 required-features = ["lambda"]
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = 3

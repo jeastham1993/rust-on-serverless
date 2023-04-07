@@ -39,3 +39,9 @@ ructe = { version="0.16.1", features = ["sass", "mime03"] }
 [[bin]]
 name = "authorizer"
 path = "src/bin/authorizer/authorizer.rs"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = 3

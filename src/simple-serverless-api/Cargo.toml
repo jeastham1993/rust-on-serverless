@@ -32,3 +32,9 @@ path = "src/bin/get_handler.rs"
 [[bin]]
 name = "delete"
 path = "src/bin/delete_handler.rs"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = 3

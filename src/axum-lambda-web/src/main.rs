@@ -20,9 +20,6 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
 
-#[macro_use]
-mod axum_ructe;
-
 struct AppState {
     dynamodb_client: Client,
     table_name: String,

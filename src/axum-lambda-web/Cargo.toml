@@ -27,3 +27,9 @@ mime = "0.3"
 aws-smithy-http = "0.54.2"
 aws-types = { version = "0.54.1" }
 http = "0.2.8"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = 3

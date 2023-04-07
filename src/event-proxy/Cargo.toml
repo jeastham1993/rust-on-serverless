@@ -32,3 +32,9 @@ path = "src/bin/publisher.rs"
 [[bin]]
 name = "register"
 path = "src/bin/register.rs"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = 3

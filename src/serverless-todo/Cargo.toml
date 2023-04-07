@@ -57,3 +57,9 @@ name = "update_todo"
 path = "src/bin/lambda/update_todo.rs"
 test = false
 required-features = ["lambda"]
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = 3
