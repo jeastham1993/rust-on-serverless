@@ -1,4 +1,4 @@
-use aws_sdk_dynamodb::{Client};
+use aws_sdk_dynamodb::Client;
 use lambda_http::{service_fn, Body, Error, Request, RequestExt, Response};
 use rust_sample::{DataAccess, DynamoDbDataAccess};
 use std::env;
@@ -35,7 +35,11 @@ async fn get_item<T: DataAccess>(
     let path_parameters = request.path_parameters();
     let id = match path_parameters.first("id") {
         Some(id) => id,
-        None => return Ok(Response::builder().status(400).body("id is required".into())?),
+        None => {
+            return Ok(Response::builder()
+                .status(400)
+                .body("id is required".into())?)
+        }
     };
 
     // Put the item in the DynamoDB table
@@ -43,10 +47,10 @@ async fn get_item<T: DataAccess>(
 
     // Return a response to the end-user
     match res {
-        Ok(query_result) => {
-            Ok(Response::builder().status(200).body(query_result.into())?)
-        },
-        Err(_) => Ok(Response::builder().status(500).body("internal error".into())?),
+        Ok(query_result) => Ok(Response::builder().status(200).body(query_result.into())?),
+        Err(_) => Ok(Response::builder()
+            .status(500)
+            .body("internal error".into())?),
     }
 }
 
@@ -80,9 +84,7 @@ mod tests {
             .unwrap()
             .with_path_parameters(path_parameters);
 
-        let response = get_item(&mock, request)
-            .await
-            .unwrap();
+        let response = get_item(&mock, request).await.unwrap();
 
         assert_eq!(response.status(), 200);
         assert_eq!(response.body(), &Body::Text("sample payload".to_string()));
@@ -111,9 +113,7 @@ mod tests {
             .unwrap()
             .with_path_parameters(path_parameters);
 
-        let response = get_item(&mock, request)
-            .await
-            .unwrap();
+        let response = get_item(&mock, request).await.unwrap();
 
         assert_eq!(response.status(), 500);
         assert_eq!(response.body(), &Body::Text("internal error".to_string()));

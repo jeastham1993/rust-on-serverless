@@ -4,32 +4,33 @@ use std::env;
 use opentelemetry::{
     global,
     sdk::trace as sdktrace,
-    trace::{Span, Tracer, self},
+    trace::{Span, Tracer}, Context, runtime,
 };
 use opentelemetry_aws::trace::XrayPropagator;
-use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_http::HeaderExtractor;
-use tracing_subscriber::prelude::*;
-use tracing_subscriber::Registry;
-use tracing_subscriber::{fmt, EnvFilter};
+use opentelemetry_otlp::{WithExportConfig, ExportConfig};
+use opentelemetry_http::{HeaderExtractor};
 
-fn init_tracer() -> sdktrace::Tracer {
+fn init_tracer() -> sdktrace::TracerProvider {
     global::set_text_map_propagator(XrayPropagator::new());
 
-    // Install stdout exporter pipeline to be able to retrieve the collected spans.
-    // For the demonstration, use `Sampler::AlwaysOn` sampler to sample all traces. In a production
-    // application, use `Sampler::ParentBased` or `Sampler::TraceIdRatioBased` with a desired ratio.
     let tracer = opentelemetry_otlp::new_pipeline()
         .tracing()
-        .with_exporter(opentelemetry_otlp::new_exporter().tonic().with_env())
         .with_trace_config(
             sdktrace::config()
                 .with_sampler(sdktrace::Sampler::AlwaysOn)
                 .with_id_generator(sdktrace::XrayIdGenerator::default()),
         )
-        .install_simple();
+        .with_exporter(
+            opentelemetry_otlp::new_exporter()
+                .http()
+                .with_export_config(ExportConfig::default())
+                .with_endpoint("http://localhost:4318/v1/traces"),
+        )
+        .install_batch(runtime::TokioCurrentThread);
 
-    tracer.unwrap()
+    let provider = tracer.unwrap().provider().unwrap();
+
+    provider
 }
 
 /// Main function
@@ -40,40 +41,26 @@ async fn main() -> Result<(), Error> {
     let table_name = env::var("TABLE_NAME").expect("TABLE_NAME must be set");
     let dynamodb_client = Client::new(&config);
 
-    let tracer = init_tracer();
+    let provider = init_tracer();
 
-    let provider = tracer
-        .provider()
-        .unwrap();
-
-    // Register the Lambda handler
-    //
-    // We use a closure to pass the `dynamodb_client` and `table_name` as arguments
-    // to the handler function.
     lambda_http::run(service_fn(|request: Request| {
         let parent_context = global::get_text_map_propagator(|propagator| {
             propagator.extract(&HeaderExtractor(request.headers()))
         });
 
-        let x_amzn_trace_id = request
-            .headers()
-            .get("x-amzn-trace-id")
-            .unwrap()
-            .to_str()
-            .unwrap();
+        let res = put_item(&dynamodb_client, &table_name, parent_context, request);
 
-        tracing::info!("Handling - {}", x_amzn_trace_id);
-
-        let mut span = global::tracer("lambda-xray").start_with_context("hello", &parent_context);
-        span.add_event(format!("Handling - {x_amzn_trace_id}"), Vec::new());
-
-        let res = put_item(&dynamodb_client, &table_name, request);
-
-        provider.force_flush();
+        for result in provider.force_flush() {
+            if let Err(err) = result {
+                println!("Flush error: {}", err.to_string());
+            }
+        }
 
         res
     }))
     .await?;
+
+    println!("Shutting down");
 
     Ok(())
 }
@@ -84,13 +71,21 @@ async fn main() -> Result<(), Error> {
 async fn put_item(
     client: &Client,
     table_name: &str,
+    ctx: Context,
     request: Request,
 ) -> Result<Response<Body>, Error> {
+
+    let mut span = global::tracer("lambda-xray").start_with_context("Processing", &ctx);
+
     // Extract path parameter from request
     let path_parameters = request.path_parameters();
     let id = match path_parameters.first("id") {
         Some(id) => id,
-        None => return Ok(Response::builder().status(400).body("id is required".into())?),
+        None => {
+            return Ok(Response::builder()
+                .status(400)
+                .body("id is required".into())?)
+        }
     };
 
     // Extract body from request
@@ -99,6 +94,9 @@ async fn put_item(
         Body::Text(body) => body.clone(),
         Body::Binary(body) => String::from_utf8_lossy(body).to_string(),
     };
+
+    let mut dynamo_span =
+        global::tracer("aws-lambda-xray").start_with_context("Write to DynamoDB", &ctx);
 
     // Put the item in the DynamoDB table
     let res = client
@@ -109,9 +107,15 @@ async fn put_item(
         .send()
         .await;
 
+    dynamo_span.end();
+
+    span.end();
+
     // Return a response to the end-user
     match res {
         Ok(_) => Ok(Response::builder().status(200).body("item saved".into())?),
-        Err(_) => Ok(Response::builder().status(500).body("internal error".into())?),
+        Err(_) => Ok(Response::builder()
+            .status(500)
+            .body("internal error".into())?),
     }
 }

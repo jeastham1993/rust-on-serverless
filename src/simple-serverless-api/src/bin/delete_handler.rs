@@ -1,4 +1,4 @@
-use aws_sdk_dynamodb::{Client};
+use aws_sdk_dynamodb::Client;
 use lambda_http::{service_fn, Body, Error, Request, RequestExt, Response};
 use rust_sample::{DataAccess, DynamoDbDataAccess};
 use std::env;

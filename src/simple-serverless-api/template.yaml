@@ -8,7 +8,16 @@ Description: >
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 3
+    Timeout: 10
+    Tracing: PassThrough
+    Layers:
+      - "arn:aws:lambda:eu-west-1:901920570463:layer:aws-otel-collector-amd64-ver-0-72-0:1"
+    Environment:
+      Variables:
+        OTEL_BSP_MAX_CONCURRENT_EXPORTS: 1
+        OTEL_BSP_MAX_EXPORT_BATCH_SIZE: 1
+  Api:
+    TracingEnabled: true
 
 Resources:
   Table:
