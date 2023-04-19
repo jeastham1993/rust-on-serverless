@@ -43,55 +43,55 @@ Resources:
         - DynamoDBWritePolicy: # More info about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
             TableName: !Ref Table
 
-  GetFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-    Metadata:
-      BuildMethod: rust-cargolambda
-      BuildProperties:
-        Binary: get
-    Properties:
-      CodeUri: .
-      Handler: bootstrap.is.the.handler
-      Runtime: provided.al2
-      Architectures:
-        - x86_64
-      Events:
-        HelloWorld:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Properties:
-            Path: /{id}
-            Method: get
-      Environment:
-        Variables:
-          TABLE_NAME: !Ref Table
-      Policies:
-        - DynamoDBReadPolicy: # More info about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
-            TableName: !Ref Table
+  # GetFunction:
+  #   Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  #   Metadata:
+  #     BuildMethod: rust-cargolambda
+  #     BuildProperties:
+  #       Binary: get
+  #   Properties:
+  #     CodeUri: .
+  #     Handler: bootstrap.is.the.handler
+  #     Runtime: provided.al2
+  #     Architectures:
+  #       - x86_64
+  #     Events:
+  #       HelloWorld:
+  #         Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+  #         Properties:
+  #           Path: /{id}
+  #           Method: get
+  #     Environment:
+  #       Variables:
+  #         TABLE_NAME: !Ref Table
+  #     Policies:
+  #       - DynamoDBReadPolicy: # More info about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+  #           TableName: !Ref Table
 
-  DeleteFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-    Metadata:
-      BuildMethod: rust-cargolambda
-      BuildProperties:
-        Binary: delete
-    Properties:
-      CodeUri: .
-      Handler: bootstrap.is.the.handler
-      Runtime: provided.al2
-      Architectures:
-        - x86_64
-      Events:
-        HelloWorld:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Properties:
-            Path: /{id}
-            Method: delete
-      Environment:
-        Variables:
-          TABLE_NAME: !Ref Table
-      Policies:
-        - DynamoDBCrudPolicy: # More info about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
-            TableName: !Ref Table
+  # DeleteFunction:
+  #   Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  #   Metadata:
+  #     BuildMethod: rust-cargolambda
+  #     BuildProperties:
+  #       Binary: delete
+  #   Properties:
+  #     CodeUri: .
+  #     Handler: bootstrap.is.the.handler
+  #     Runtime: provided.al2
+  #     Architectures:
+  #       - x86_64
+  #     Events:
+  #       HelloWorld:
+  #         Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+  #         Properties:
+  #           Path: /{id}
+  #           Method: delete
+  #     Environment:
+  #       Variables:
+  #         TABLE_NAME: !Ref Table
+  #     Policies:
+  #       - DynamoDBCrudPolicy: # More info about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+  #           TableName: !Ref Table
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function

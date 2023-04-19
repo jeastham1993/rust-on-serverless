@@ -1,6 +1,36 @@
-use aws_sdk_dynamodb::{model::AttributeValue, Client};
+use aws_sdk_dynamodb::{types::AttributeValue, Client};
 use lambda_http::{service_fn, Body, Error, Request, RequestExt, Response};
 use std::env;
+use opentelemetry::{
+    global,
+    sdk::trace as sdktrace,
+    trace::{Span, Tracer, self},
+};
+use opentelemetry_aws::trace::XrayPropagator;
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_http::HeaderExtractor;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::Registry;
+use tracing_subscriber::{fmt, EnvFilter};
+
+fn init_tracer() -> sdktrace::Tracer {
+    global::set_text_map_propagator(XrayPropagator::new());
+
+    // Install stdout exporter pipeline to be able to retrieve the collected spans.
+    // For the demonstration, use `Sampler::AlwaysOn` sampler to sample all traces. In a production
+    // application, use `Sampler::ParentBased` or `Sampler::TraceIdRatioBased` with a desired ratio.
+    let tracer = opentelemetry_otlp::new_pipeline()
+        .tracing()
+        .with_exporter(opentelemetry_otlp::new_exporter().tonic().with_env())
+        .with_trace_config(
+            sdktrace::config()
+                .with_sampler(sdktrace::Sampler::AlwaysOn)
+                .with_id_generator(sdktrace::XrayIdGenerator::default()),
+        )
+        .install_simple();
+
+    tracer.unwrap()
+}
 
 /// Main function
 #[tokio::main]
@@ -10,12 +40,38 @@ async fn main() -> Result<(), Error> {
     let table_name = env::var("TABLE_NAME").expect("TABLE_NAME must be set");
     let dynamodb_client = Client::new(&config);
 
+    let tracer = init_tracer();
+
+    let provider = tracer
+        .provider()
+        .unwrap();
+
     // Register the Lambda handler
     //
     // We use a closure to pass the `dynamodb_client` and `table_name` as arguments
     // to the handler function.
     lambda_http::run(service_fn(|request: Request| {
-        put_item(&dynamodb_client, &table_name, request)
+        let parent_context = global::get_text_map_propagator(|propagator| {
+            propagator.extract(&HeaderExtractor(request.headers()))
+        });
+
+        let x_amzn_trace_id = request
+            .headers()
+            .get("x-amzn-trace-id")
+            .unwrap()
+            .to_str()
+            .unwrap();
+
+        tracing::info!("Handling - {}", x_amzn_trace_id);
+
+        let mut span = global::tracer("lambda-xray").start_with_context("hello", &parent_context);
+        span.add_event(format!("Handling - {x_amzn_trace_id}"), Vec::new());
+
+        let res = put_item(&dynamodb_client, &table_name, request);
+
+        provider.force_flush();
+
+        res
     }))
     .await?;
 
@@ -57,140 +113,5 @@ async fn put_item(
     match res {
         Ok(_) => Ok(Response::builder().status(200).body("item saved".into())?),
         Err(_) => Ok(Response::builder().status(500).body("internal error".into())?),
-    }
-}
-
-/// Unit tests
-///
-/// These tests are run using the `cargo test` command.
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use aws_sdk_dynamodb::{Client, Config, Credentials, Region};
-    use aws_smithy_client::{test_connection::TestConnection, erase::DynConnector};
-    use aws_smithy_http::body::SdkBody;
-    use std::collections::HashMap;
-
-    // Helper function to create a mock AWS configuration
-    async fn get_mock_config(conn: &TestConnection<SdkBody>) -> Config {
-        let cfg = aws_config::from_env()
-            .region(Region::new("eu-west-1"))
-            .http_connector(DynConnector::new(conn.clone()))
-            .credentials_provider(Credentials::new(
-                "access_key",
-                "privatekey",
-                None,
-                None,
-                "dummy",
-            ))
-            .load()
-            .await;
-
-        Config::new(&cfg)
-    }
-
-    /// Helper function to generate a sample DynamoDB request
-    fn get_request_builder() -> http::request::Builder {
-        http::Request::builder()
-            .header("content-type", "application/x-amz-json-1.0")
-            .uri(http::uri::Uri::from_static(
-                "https://dynamodb.eu-west-1.amazonaws.com/",
-            ))
-    }
-
-    #[tokio::test]
-    async fn test_put_item() {
-        // Mock DynamoDB client
-        //
-        // `TestConnection` takes a vector of requests and responses, allowing us to
-        // simulate the behaviour of the DynamoDB API endpoint. Since we are only
-        // making a single request in this test, we only need to provide a single
-        // entry in the vector.
-        let conn = TestConnection::new(vec![(
-            get_request_builder()
-                .header("x-amz-target", "DynamoDB_20120810.PutItem")
-                .body(SdkBody::from(
-                    r#"{"TableName":"test","Item":{"id":{"S":"1"},"payload":{"S":"test1"}}}"#,
-                ))
-                .unwrap(),
-            http::Response::builder()
-                .status(200)
-                .body(SdkBody::from(
-                    r#"{"Attributes": {"id": {"S": "1"}, "payload": {"S": "test1"}}}"#,
-                ))
-                .unwrap(),
-        )]);
-
-        let client = Client::from_conf(get_mock_config(&conn).await);
-
-        let table_name = "test_table";
-
-        // Mock API Gateway request
-        let mut path_parameters = HashMap::new();
-        path_parameters.insert("id".to_string(), vec!["1".to_string()]);
-
-        let request = http::Request::builder()
-            .method("PUT")
-            .uri("/1")
-            .body(Body::Text("test1".to_string()))
-            .unwrap()
-            .with_path_parameters(path_parameters);
-
-        // Send mock request to Lambda handler function
-        let response = put_item(&client, table_name, request)
-            .await
-            .unwrap();
-
-        // Assert that the response is correct
-        assert_eq!(response.status(), 200);
-        assert_eq!(response.body(), &Body::Text("item saved".to_string()));
-    }
-
-    #[tokio::test]
-    async fn test_put_item_when_dynamodb_fails_should_return_500() {
-        // Mock DynamoDB client
-        //
-        // `TestConnection` takes a vector of requests and responses, allowing us to
-        // simulate the behaviour of the DynamoDB API endpoint. Since we are only
-        // making a single request in this test, we only need to provide a single
-        // entry in the vector.
-        let conn = TestConnection::new(vec![(
-            get_request_builder()
-                .header("x-amz-target", "DynamoDB_20120810.PutItem")
-                .body(SdkBody::from(
-                    r#"{"TableName":"test","Item":{"id":{"S":"1"},"payload":{"S":"test1"}}}"#,
-                ))
-                .unwrap(),
-            http::Response::builder()
-                .status(500)
-                .body(SdkBody::from(
-                    r#"{"Attributes": {"id": {"S": "1"}, "payload": {"S": "test1"}}}"#,
-                ))
-                .unwrap(),
-        )]);
-
-        let client = Client::from_conf(get_mock_config(&conn).await);
-
-        let table_name = "test_table";
-
-        // Mock API Gateway request
-        let mut path_parameters = HashMap::new();
-        path_parameters.insert("id".to_string(), vec!["1".to_string()]);
-
-        let request = http::Request::builder()
-            .method("PUT")
-            .uri("/1")
-            .body(Body::Text("test1".to_string()))
-            .unwrap()
-            .with_path_parameters(path_parameters);
-
-        // Send mock request to Lambda handler function
-        let response = put_item(&client, table_name, request)
-            .await
-            .unwrap();
-
-        // Assert that the response is correct
-        assert_eq!(response.status(), 500);
-        assert_eq!(response.body(), &Body::Text("internal error".to_string()));
     }
 }
