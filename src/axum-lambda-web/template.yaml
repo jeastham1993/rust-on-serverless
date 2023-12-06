@@ -37,8 +37,8 @@ Resources:
     Properties:
       CodeUri: .
       Handler: bootstrap.is.the.handler
-      FunctionUrlConfig:
-         AuthType: NONE
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:17
       Events:
         RustApi:
           Type: HttpApi # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api

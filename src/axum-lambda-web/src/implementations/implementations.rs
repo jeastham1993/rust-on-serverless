@@ -1,131 +1,131 @@
-use std::fmt::Error;
+use crate::application::entities::{ToDoRepo, ToDo, Title, OwnerId, ToDoId};
 use async_trait::async_trait;
-use aws_sdk_dynamodb::Client;
 use aws_sdk_dynamodb::types::AttributeValue;
-use crate::application::application::{Todo, ToDoRepo};
+use aws_sdk_dynamodb::Client;
+use aws_sdk_dynamodb::error::ProvideErrorMetadata;
+use crate::application::error_types::RepositoryError;
+use chrono::DateTime;
 
 pub struct DynamoDbToDoRepo {
     client: Client,
-    table_name: String
+    table_name: String,
 }
 
 impl DynamoDbToDoRepo {
-    pub fn new (client: Client, table_name: String) -> Self{
-        Self {
-            client,
-            table_name
-        }
+    pub fn new(client: Client, table_name: String) -> Self {
+        Self { client, table_name }
     }
 }
 
 #[async_trait]
 impl ToDoRepo for DynamoDbToDoRepo {
-    async fn list(&self, user_id: &str) -> Result<Vec<Todo>, Error> {
-        let res = self.client
+    async fn list(&self, user_id: &str) -> Result<Vec<ToDo>, RepositoryError> {
+        let res = self
+            .client
             .query()
             .table_name(&self.table_name)
             .key_condition_expression("PK = :hashKey")
-            .expression_attribute_values(
-                ":hashKey",
-                AttributeValue::S(String::from("USER#JAMESEASTHAM")),
-            )
+            .expression_attribute_values(":hashKey", generate_pk(&user_id.to_string()))
             .send()
             .await;
 
-        let query_result = res.unwrap();
+        match res {
+            Ok(query_res) => Ok({
+                let mut items: Vec<ToDo> = Vec::new();
 
-        let mut items: Vec<Todo> = Vec::new();
+                for item in query_res.items() {
+                    items.push(
+                        ToDo::parse(
+                            Title::new(item.get("title").unwrap().as_s().unwrap().clone()).unwrap(),
+                            OwnerId::new(item.get("ownerId").unwrap().as_s().unwrap().clone())
+                                .unwrap(),
+                            Some(item.get("status").unwrap().as_s().unwrap().clone()),
+                            Some(
+                                ToDoId::parse(item.get("id").unwrap().as_s().unwrap().clone())
+                                    .unwrap(),
+                            ),
+                            match item.get("completedOn") {
+                                Option::None => Option::None,
+                                Some(val) => {
+                                    Some(DateTime::parse_from_rfc3339(val.as_s().unwrap()).unwrap())
+                                }
+                            },
+                        )
+                            .unwrap(),
+                    )
+                }
 
-        query_result
-            .items()
-            .into_iter()
-            .for_each(|item| {
-                items.push(Todo {
-                    id: item["id"].as_s().unwrap().to_string(),
-                    text: item["text"].as_s().unwrap().to_string(),
-                    completed: *item["completed"].as_bool().unwrap(),
-                });
-            });
-
-        Ok(items)
+                items
+            }),
+            Err(e) => Err(RepositoryError::new(e.to_string())),
+        }
     }
 
-    async fn create(&self, todo: Todo) -> Result<(), Error> {
-        let _ = self.client
+    async fn create(&self, todo: &ToDo) -> Result<(), RepositoryError> {
+        let _ = self
+            .client
             .put_item()
             .table_name(&self.table_name)
-            .item("PK", AttributeValue::S(String::from("USER#JAMESEASTHAM")))
+            .key("PK", generate_pk(&todo.get_owner().to_string()))
+            .key("SK", generate_sk(&todo.get_id().to_string()))
+            .item("id", AttributeValue::S(todo.get_id().into()))
+            .item("title", AttributeValue::S(todo.get_title().into()))
+            .item("status", AttributeValue::S(todo.get_status().into()))
+            .item("ownerId", AttributeValue::S(todo.get_owner().into()))
             .item(
-                "SK",
-                AttributeValue::S(String::from(format!("TODO#{0}", &todo.id.to_uppercase()))),
+                "completedOn",
+                AttributeValue::S(todo.get_completed_on().into()),
             )
-            .item("text", AttributeValue::S(todo.text.to_string()))
-            .item("id", AttributeValue::S(todo.id.to_string()))
-            .item("completed", AttributeValue::Bool(todo.completed))
             .send()
             .await;
 
         Ok(())
     }
 
-    async fn get(&self, todo_id: &str) -> Result<Todo, Error> {
+    async fn get(&self, user_id: &str, todo_id: &str) -> Result<ToDo, RepositoryError> {
         let res = self
             .client
             .get_item()
             .table_name(&self.table_name)
-            .key("PK", AttributeValue::S("USER#JAMESEASTHAM".to_string()))
-            .key(
-                "SK",
-                AttributeValue::S(String::from(format!("TODO#{0}", todo_id.to_uppercase()))),
-            )
+            .key("PK", generate_pk(&user_id.to_string()))
+            .key("SK", generate_sk(&todo_id.to_string()))
             .send()
             .await;
 
-        let response_value = res.unwrap();
-        let result_item = response_value.item().expect("Item should exist");
+        match res {
+            Ok(item) => Ok({
+                let attributes = item.item().unwrap().clone();
 
-        Ok(Todo {
-            id: result_item["id"].as_s().unwrap().to_string(),
-            text: result_item["text"].as_s().unwrap().to_string(),
-            completed: *result_item["completed"].as_bool().unwrap(),
-        })
-    }
-}
-
-pub struct InMemoryToDoRepo{
-    todos: Vec<Todo>
-}
-
-impl InMemoryToDoRepo {
-    pub fn new() -> Self{
-        Self {
-            todos: Vec::new()
+                ToDo::parse(
+                    Title::new(attributes.get("title").unwrap().as_s().unwrap().clone()).unwrap(),
+                    OwnerId::new(attributes.get("ownerId").unwrap().as_s().unwrap().clone())
+                        .unwrap(),
+                    Some(attributes.get("status").unwrap().as_s().unwrap().clone()),
+                    Some(
+                        ToDoId::parse(attributes.get("id").unwrap().as_s().unwrap().clone())
+                            .unwrap(),
+                    ),
+                    match attributes.get("completedOn") {
+                        Option::None => Option::None,
+                        Some(val) => {
+                            Some(DateTime::parse_from_rfc3339(val.as_s().unwrap()).unwrap())
+                        }
+                    },
+                ).unwrap()
+            }),
+            Err(e) => {
+                Err(RepositoryError::new(e.into_service_error().message().unwrap().to_string()))
+            },
         }
     }
 }
 
-#[async_trait]
-impl ToDoRepo for InMemoryToDoRepo {
+fn generate_pk(user_id: &String) -> AttributeValue
+{
+    AttributeValue::S(format!("USER#{0}", user_id.to_uppercase()))
+}
 
-    async fn list(&self, user_id: &str) -> Result<Vec<Todo>, Error> {
-        Ok(self.todos.clone())
-    }
-
-    async fn create(&self, to_do: Todo) -> Result<(), Error> {
-        Ok(())
-    }
-
-    async fn get(&self, todo_id: &str) -> Result<Todo, Error> {
-        let todo: Vec<Todo> = self.todos.clone()
-            .into_iter()
-            .filter(|todo| todo.id == todo_id)
-            .collect();
-
-        if todo.iter().count() == 1 {
-            Ok(todo[0].clone())
-        }
-        else {
-            Err(Error)
-        }
-    }
+fn generate_sk(todo_id: &String) -> AttributeValue
+{
+    AttributeValue::S(format!("TODO#{0}", todo_id.to_uppercase()))
 }
