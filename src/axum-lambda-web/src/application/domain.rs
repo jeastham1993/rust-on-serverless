@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
 use uuid::Uuid;
+use crate::application::messaging::MessagePublisher;
 
 use super::{
     error_types::{RepositoryError, ValidationError},
@@ -11,7 +12,8 @@ use super::{
 };
 
 pub struct AppState {
-    pub todo_repo: Arc<dyn ToDoRepo + Send + Sync>
+    pub todo_repo: Arc<dyn ToDoRepo + Send + Sync>,
+    pub message_publisher: Arc<dyn MessagePublisher + Send + Sync>
 }
 
 const INCOMPLETE_STATUS: &str = "INCOMPLETE";
@@ -55,6 +57,7 @@ impl ToDo {
             to_do_id: id,
             title,
             owner: owner_id,
+            has_changes: false
         }))
     }
 
@@ -63,7 +66,15 @@ impl ToDo {
             to_do_id: ToDoId::empty(),
             title: Title::empty(),
             owner: OwnerId::empty(),
+            has_changes: false
         })
+    }
+
+    pub(crate) fn has_changes(&self) -> bool {
+        match &self {
+            ToDo::Incomplete(incomplete) => incomplete.has_changes,
+            ToDo::Complete(complete) => complete.has_changes
+        }
     }
 
     /// Parse a ToDo from a set of existing values
@@ -107,6 +118,7 @@ impl ToDo {
                         to_do_id: existing_id.unwrap(),
                         title,
                         owner: owner_id,
+                        has_changes: false
                     })),
                     COMPLETE_STATUS => {
                         let parsed_completed_on = match completed_on {
@@ -122,12 +134,14 @@ impl ToDo {
                             title,
                             owner: owner_id,
                             completed_on: parsed_completed_on,
+                            has_changes: false
                         }))
                     }
                     _ => Ok(ToDo::Incomplete(IncompleteToDo {
                         to_do_id: id,
                         title,
                         owner: owner_id,
+                        has_changes: false
                     })),
                 }
             }
@@ -135,6 +149,7 @@ impl ToDo {
                 to_do_id: id,
                 title,
                 owner: owner_id,
+                has_changes: false
             })),
         }
     }
@@ -194,12 +209,14 @@ impl ToDo {
                 to_do_id: incomplete.to_do_id.clone(),
                 title: new_title_value.unwrap(),
                 owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
+                has_changes: true
             }),
             ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
                 to_do_id: complete.to_do_id.clone(),
                 title: Title::new(complete.title.to_string()).unwrap(),
                 owner: OwnerId::new(complete.owner.to_string()).unwrap(),
                 completed_on: complete.completed_on,
+                has_changes: self.has_changes()
             }),
         };
 
@@ -214,12 +231,14 @@ impl ToDo {
                 title: Title::new(incomplete.title.to_string()).unwrap(),
                 owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
                 completed_on: DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap(),
+                has_changes: true
             }),
             ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
                 to_do_id: complete.to_do_id.clone(),
                 title: Title::new(complete.title.to_string()).unwrap(),
                 owner: OwnerId::new(complete.owner.to_string()).unwrap(),
                 completed_on: complete.completed_on,
+                has_changes: false
             }),
         }
     }
@@ -273,6 +292,7 @@ pub struct IncompleteToDo {
     to_do_id: ToDoId,
     title: Title,
     owner: OwnerId,
+    has_changes: bool
 }
 
 /// Represents the structure of a complete ToDo item
@@ -282,6 +302,7 @@ pub struct CompleteToDo {
     title: Title,
     owner: OwnerId,
     completed_on: DateTime<FixedOffset>,
+    has_changes: bool
 }
 
 #[derive(Clone)]
@@ -432,12 +453,14 @@ mod tests {
             to_do_id: ToDoId::parse(String::from("hello")).unwrap(),
             title: Title::new(String::from("hello")).unwrap(),
             owner: OwnerId::new(String::from("hello")).unwrap(),
+            has_changes: false
         });
 
         let updated_todo = todo.update_title(String::from("my new title"));
 
         if let ToDo::Incomplete(todo) = updated_todo.unwrap() {
-            assert_eq!(todo.title.to_string(), String::from("my new title"))
+            assert_eq!(todo.title.to_string(), String::from("my new title"));
+            assert_eq!(todo.has_changes, true)
         } else {
             panic!("ToDo update method did not return the expected type")
         }
@@ -450,12 +473,14 @@ mod tests {
             title: Title::new(String::from("hello")).unwrap(),
             owner: OwnerId::new(String::from("hello")).unwrap(),
             completed_on: DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap(),
+            has_changes: false
         });
 
         let updated_todo = todo.update_title(String::from("my new title"));
 
         if let ToDo::Complete(completed) = updated_todo.unwrap() {
-            assert_eq!(completed.title.to_string(), String::from("hello"))
+            assert_eq!(completed.title.to_string(), String::from("hello"));
+            assert_eq!(completed.has_changes, false)
         } else {
             panic!("ToDo update method did not return the expected type")
         }
@@ -467,6 +492,7 @@ mod tests {
             to_do_id: ToDoId::parse(String::from("hello")).unwrap(),
             title: Title::new(String::from("hello")).unwrap(),
             owner: OwnerId::new(String::from("hello")).unwrap(),
+            has_changes: false
         });
 
         let updated_todo = todo.set_completed();
@@ -487,6 +513,7 @@ mod tests {
             title: Title::new(String::from("hello")).unwrap(),
             owner: OwnerId::new(String::from("hello")).unwrap(),
             completed_on: date,
+            has_changes: false
         });
 
         let updated_todo = todo.set_completed();

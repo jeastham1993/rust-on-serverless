@@ -11,6 +11,7 @@ Globals:
     Timeout: 3
     Handler: bootstrap.is.the.handler
     Runtime: provided.al2
+    MemorySize: 256
     Architectures:
       - arm64
 
@@ -48,9 +49,12 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref Table
+          EVENT_BUS_NAME: default
       Policies:
         - DynamoDBCrudPolicy: # More info about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
             TableName: !Ref Table
+        - EventBridgePutEventsPolicy:
+            EventBusName: default
 Outputs:
   ServerlessApi:
     Description: "API Gateway endpoint URL for Prod stage for Put function"

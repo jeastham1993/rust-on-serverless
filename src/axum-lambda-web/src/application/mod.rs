@@ -5,3 +5,5 @@ pub mod queries;
 pub mod adapters;
 
 pub mod domain;
+pub mod messaging;
+mod events;

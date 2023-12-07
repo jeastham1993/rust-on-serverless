@@ -1,6 +1,8 @@
 use std::sync::Arc;
 use crate::application::{error_types::ValidationError};
 use crate::application::domain::ToDoRepo;
+use crate::application::events::{MessageType, ToDoCreated, ToDoCompleted, ToDoUpdated};
+use crate::application::messaging::{MessagePublisher};
 
 use super::{
     domain::{OwnerId, Title, ToDo},
@@ -11,6 +13,7 @@ pub async fn create_to_do(
     owner: String,
     input: CreateToDoCommand,
     client: &Arc<dyn ToDoRepo + Send + Sync>,
+    message_publisher: &Arc<dyn MessagePublisher + Send + Sync>
 ) -> Result<ToDoItem, ValidationError> {
     let parsed_title = Title::new(input.title);
     let parsed_ownerid = OwnerId::new(owner);
@@ -30,7 +33,11 @@ pub async fn create_to_do(
             let db_res = client.create(&val).await;
 
             match db_res {
-                Ok(_) => Ok(val.into_dto()),
+                Ok(_) => {
+                    let _ = message_publisher.publish(MessageType::ToDoCreated(ToDoCreated::new(val.get_id(), val.get_owner()))).await;
+
+                    Ok(val.into_dto())
+                },
                 Err(_) => Err(ValidationError::new("Failure creating ToDo".to_string())),
             }
         }
@@ -51,6 +58,7 @@ pub async fn update_todo(
     to_do_id: String,
     update_command: UpdateToDoCommand,
     client: &Arc<dyn ToDoRepo + Send + Sync>,
+    message_publisher: &Arc<dyn MessagePublisher + Send + Sync>,
 ) -> Result<ToDoItem, ServiceError> {
     let query_res = client
         .get(&owner, &to_do_id)
@@ -67,7 +75,16 @@ pub async fn update_todo(
 
             match updated_todo {
                 Ok(res) => {
+                    if (!res.has_changes()) {
+                        return Ok(res.into_dto());
+                    }
+
                     let database_result = client.create(&res).await;
+
+                    let _ = match update_command.set_as_complete {
+                        true => message_publisher.publish(MessageType::ToDoCompleted(ToDoCompleted::new(res.get_id(), res.get_owner()))).await,
+                        false => message_publisher.publish(MessageType::ToDoUpdated(ToDoUpdated::new(res.get_id(), res.get_owner()))).await,
+                    };
 
                     match database_result {
                         Ok(_) => Ok(res.into_dto()),
@@ -122,6 +139,7 @@ mod tests {
         commands,
     };
     use crate::application::domain::AppState;
+    use crate::application::messaging::InMemoryMessagePublisher;
 
     struct MockRepository {
         should_fail: bool,
@@ -188,6 +206,7 @@ mod tests {
                 should_fail: false,
                 to_do_status_to_return: "INCOMPLETE".to_string(),
             }),
+            message_publisher: Arc::new(InMemoryMessagePublisher::new())
         });
 
         let to_dos = commands::update_todo(
@@ -198,6 +217,7 @@ mod tests {
                 set_as_complete: false,
             },
             &shared_state.todo_repo,
+            &shared_state.message_publisher
         )
             .await;
 
@@ -212,6 +232,7 @@ mod tests {
                 should_fail: false,
                 to_do_status_to_return: "COMPLETE".to_string(),
             }),
+            message_publisher: Arc::new(InMemoryMessagePublisher::new())
         });
 
         let to_dos = commands::update_todo(
@@ -222,6 +243,7 @@ mod tests {
                 set_as_complete: true,
             },
             &shared_state.todo_repo,
+            &shared_state.message_publisher
         )
             .await;
 
@@ -236,6 +258,7 @@ mod tests {
                 should_fail: false,
                 to_do_status_to_return: "INCOMPLETE".to_string(),
             }),
+            message_publisher: Arc::new(InMemoryMessagePublisher::new())
         });
 
         let to_dos = commands::update_todo(
@@ -246,6 +269,7 @@ mod tests {
                 set_as_complete: false,
             },
             &shared_state.todo_repo,
+            &shared_state.message_publisher
         )
             .await;
 
@@ -260,6 +284,7 @@ mod tests {
                 should_fail: false,
                 to_do_status_to_return: "INCOMPLETE".to_string(),
             }),
+            message_publisher: Arc::new(InMemoryMessagePublisher::new())
         });
 
         let to_dos = commands::update_todo(
@@ -270,6 +295,7 @@ mod tests {
                 set_as_complete: true,
             },
             &shared_state.todo_repo,
+            &shared_state.message_publisher
         )
             .await;
 

@@ -48,6 +48,7 @@ mod tests {
         error_types::RepositoryError,
     };
     use crate::application::domain::AppState;
+    use crate::application::messaging::InMemoryMessagePublisher;
     use crate::application::queries::{get_todos, list_todos};
 
     struct MockRepository {
@@ -115,6 +116,7 @@ mod tests {
                 should_fail: false,
                 to_do_status_to_return: "INCOMPLETE".to_string(),
             }),
+            message_publisher: Arc::new(InMemoryMessagePublisher::new())
         });
 
         let to_dos = list_todos(&String::from("owner"), &shared_state.todo_repo).await;
@@ -130,6 +132,7 @@ mod tests {
                 should_fail: false,
                 to_do_status_to_return: "INCOMPLETE".to_string(),
             }),
+            message_publisher: Arc::new(InMemoryMessagePublisher::new())
         });
 
         let to_dos = get_todos(
@@ -150,6 +153,7 @@ mod tests {
                 should_fail: true,
                 to_do_status_to_return: "INCOMPLETE".to_string(),
             }),
+            message_publisher: Arc::new(InMemoryMessagePublisher::new())
         });
 
         let to_dos = list_todos(&String::from("owner"), &shared_state.todo_repo).await;

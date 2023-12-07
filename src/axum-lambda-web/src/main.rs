@@ -15,6 +15,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use crate::application::public_types::{CreateToDoCommand, ToDoItem, UpdateToDoCommand};
 use crate::application::commands::{create_to_do, update_todo};
 use crate::application::domain::AppState;
+use crate::application::messaging::{EventBridgeEventPublisher, InMemoryMessagePublisher, MessagePublisher};
 use crate::application::queries::{list_todos, get_todos};
 
 #[derive(Serialize, Deserialize)]
@@ -46,6 +47,7 @@ async fn main() {
     let config: SdkConfig = aws_config::load_defaults(BehaviorVersion::latest()).await;
 
     let mut dynamodb_client: Client = Client::new(&config);
+    let eventbridge_client: aws_sdk_eventbridge::Client = aws_sdk_eventbridge::Client::new(&config);
 
     let mut table_name = env::var("TABLE_NAME").expect("TABLE_NAME must be set");
 
@@ -61,12 +63,23 @@ async fn main() {
         table_name = String::from("TODO");
     }
 
-    let shared_state = Arc::new(AppState {
+    let mut shared_state = Arc::new(AppState {
         todo_repo: Arc::new(DynamoDbToDoRepo::new(
             dynamodb_client.clone(),
             table_name.clone(),
         )),
+        message_publisher: Arc::new(EventBridgeEventPublisher::new(eventbridge_client))
     });
+
+    if use_local.is_ok() {
+        shared_state = Arc::new(AppState {
+            todo_repo: Arc::new(DynamoDbToDoRepo::new(
+                dynamodb_client.clone(),
+                table_name.clone(),
+            )),
+            message_publisher: Arc::new(InMemoryMessagePublisher::new())
+        });
+    }
 
     let app = app(shared_state);
 
@@ -135,7 +148,7 @@ async fn post_todo_endpoint(
 )  -> impl IntoResponse {
     match check_user_header(headers) {
         Ok(user_id) => {
-            let todo = create_to_do(user_id, input, &state.todo_repo).await.unwrap();
+            let todo = create_to_do(user_id, input, &state.todo_repo, &state.message_publisher).await.unwrap();
 
             let response = ApiResponse {
                 data: todo,
@@ -166,7 +179,7 @@ async fn update_todo_endpoint(
 {
     match check_user_header(headers) {
         Ok(user_id) => {
-            let todo = update_todo(user_id, id, input, &state.todo_repo)
+            let todo = update_todo(user_id, id, input, &state.todo_repo, &state.message_publisher)
                 .await.unwrap();
 
             let response = ApiResponse {
@@ -253,7 +266,7 @@ mod tests {
         }
 
         async fn update(&self, text: &str, todo_id: &str, set_as_complete: &bool) -> Response {
-            let body = format!("{{\"title\":\"{0}\", \"to_do_id\":\"{1}\", \"set_as_complete\":{2}}}", text, todo_id, set_as_complete);
+            let body = format!("{{\"title\":\"{0}\", \"set_as_complete\":{1}}}", text, set_as_complete);
 
             self.router.clone()
                 .oneshot(
@@ -302,6 +315,7 @@ mod tests {
                 dynamodb_client.clone(),
                 table_name.clone(),
             )),
+            message_publisher: Arc::new(InMemoryMessagePublisher::new())
         })
     }
 
