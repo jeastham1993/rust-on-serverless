@@ -12,7 +12,7 @@ Globals:
     Handler: bootstrap.is.the.handler
     Runtime: provided.al2
     Architectures:
-      - x86_64
+      - arm64
 
 Resources:
   Table:
@@ -38,7 +38,7 @@ Resources:
       CodeUri: .
       Handler: bootstrap.is.the.handler
       Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:17
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerArm64:17
       Events:
         RustApi:
           Type: HttpApi # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
