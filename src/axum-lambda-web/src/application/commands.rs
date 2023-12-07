@@ -47,11 +47,13 @@ pub async fn create_to_do(
 }
 
 pub async fn update_todo(
+    owner: String,
+    to_do_id: String,
     update_command: UpdateToDoCommand,
     client: &Arc<dyn ToDoRepo + Send + Sync>,
 ) -> Result<ToDoItem, ServiceError> {
     let query_res = client
-        .get(&update_command.owner_id, &update_command.to_do_id)
+        .get(&owner, &to_do_id)
         .await;
 
     match query_res {
@@ -75,8 +77,6 @@ pub async fn update_todo(
                             Err(ServiceError::new(e.to_string()))
                         },
                     }
-
-
                 }
                 Err(e) => Err(ServiceError::new(e.to_string())),
             }
@@ -191,10 +191,10 @@ mod tests {
         });
 
         let to_dos = commands::update_todo(
+            "jameseastham".to_string(),
+            "12345".to_string(),
             UpdateToDoCommand {
-                owner_id: "jameseastham".to_string(),
                 title: "newtitle".to_string(),
-                to_do_id: "12345".to_string(),
                 set_as_complete: false,
             },
             &shared_state.todo_repo,
@@ -215,10 +215,10 @@ mod tests {
         });
 
         let to_dos = commands::update_todo(
+            "jameseastham".to_string(),
+            "12345".to_string(),
             UpdateToDoCommand {
-                owner_id: "jameseastham".to_string(),
                 title: "newtitle".to_string(),
-                to_do_id: "12345".to_string(),
                 set_as_complete: true,
             },
             &shared_state.todo_repo,
@@ -239,10 +239,10 @@ mod tests {
         });
 
         let to_dos = commands::update_todo(
+            "jameseastham".to_string(),
+            "12345".to_string(),
             UpdateToDoCommand {
-                owner_id: "jameseastham".to_string(),
                 title: "newtitle".to_string(),
-                to_do_id: "12345".to_string(),
                 set_as_complete: false,
             },
             &shared_state.todo_repo,
@@ -263,10 +263,10 @@ mod tests {
         });
 
         let to_dos = commands::update_todo(
+            "jameseastham".to_string(),
+            "12345".to_string(),
             UpdateToDoCommand {
-                owner_id: "jameseastham".to_string(),
                 title: "newtitle".to_string(),
-                to_do_id: "12345".to_string(),
                 set_as_complete: true,
             },
             &shared_state.todo_repo,

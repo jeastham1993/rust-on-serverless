@@ -159,13 +159,14 @@ async fn post_todo_endpoint(
 }
 
 async fn update_todo_endpoint(
+    Path(id): Path<String>,
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(input): Json<UpdateToDoCommand>) -> impl IntoResponse
 {
     match check_user_header(headers) {
         Ok(user_id) => {
-            let todo = update_todo(input, &state.todo_repo)
+            let todo = update_todo(user_id, id, input, &state.todo_repo)
                 .await.unwrap();
 
             let response = ApiResponse {
@@ -234,8 +235,8 @@ mod tests {
                 .unwrap()
         }
 
-        async fn create(&self, user_id: &str, text: &str) -> Response {
-            let body = format!("{{\"title\":\"{0}\", \"owner_id\":\"{1}\"}}", text, user_id);
+        async fn create(&self, text: &str) -> Response {
+            let body = format!("{{\"title\":\"{0}\"}}", text);
 
             self.router.clone()
                 .oneshot(
@@ -251,8 +252,8 @@ mod tests {
                 .unwrap()
         }
 
-        async fn update(&self, user_id: &str, text: &str, todo_id: &str, set_as_complete: &bool) -> Response {
-            let body = format!("{{\"title\":\"{0}\", \"todo_id\":\"{1}\", \"set_as_complete\":\"{2}\", \"owner_id\":\"{3}\"}}", text, todo_id, set_as_complete, user_id);
+        async fn update(&self, text: &str, todo_id: &str, set_as_complete: &bool) -> Response {
+            let body = format!("{{\"title\":\"{0}\", \"to_do_id\":\"{1}\", \"set_as_complete\":{2}}}", text, todo_id, set_as_complete);
 
             self.router.clone()
                 .oneshot(
@@ -329,7 +330,7 @@ mod tests {
 
         let test_text = "My todo";
 
-        let response = driver.create("jameseastham", &test_text).await;
+        let response = driver.create(&test_text).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
@@ -355,7 +356,7 @@ mod tests {
 
         let test_text = "My todo";
 
-        let response = driver.create("jameseastham", &test_text).await;
+        let response = driver.create(&test_text).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
@@ -363,7 +364,7 @@ mod tests {
 
         let created_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*body.to_vec()).unwrap();
 
-        let update_response = driver.update("jameseastham", "Updated todo", &created_todo.data.id, &true).await;
+        let update_response = driver.update("Updated todo", &created_todo.data.id, &true).await;
 
         let get_response = driver.get(&created_todo.data.id).await;
 
@@ -386,7 +387,7 @@ mod tests {
 
         let test_text = "My todo";
 
-        let response = driver.create("jameseastham", &test_text).await;
+        let response = driver.create(&test_text).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
@@ -394,7 +395,8 @@ mod tests {
 
         let created_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*body.to_vec()).unwrap();
 
-        let update_response = driver.update("jameseastham", "Updated todo", &created_todo.data.id, &false).await;
+        let update_response = driver.update("Updated todo", &created_todo.data.id, &false).await;
+        assert_eq!(update_response.status(), StatusCode::OK);
 
         let get_response = driver.get(&created_todo.data.id).await;
 
