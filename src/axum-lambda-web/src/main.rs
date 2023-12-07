@@ -1,9 +1,8 @@
 mod application;
-mod implementations;
 
 use std::env;
 
-use crate::implementations::implementations::DynamoDbToDoRepo;
+use crate::application::adapters::DynamoDbToDoRepo;
 use aws_config::{BehaviorVersion, Region, SdkConfig};
 use aws_sdk_dynamodb::Client;
 use axum::{extract::Path, extract::State, response::Json, routing::get, Router};
@@ -13,9 +12,10 @@ use axum::response::IntoResponse;
 use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use crate::application::entities::{AppState, OwnerId, ToDo, ToDoId};
-use crate::application::public_types::{CreateToDoCommand, ToDoItem};
-use crate::application::todo_service::{create_to_do, get_todos, list_todos};
+use crate::application::public_types::{CreateToDoCommand, ToDoItem, UpdateToDoCommand};
+use crate::application::commands::{create_to_do, update_todo};
+use crate::application::domain::AppState;
+use crate::application::queries::{list_todos, get_todos};
 
 #[derive(Serialize, Deserialize)]
 struct ApiResponse<T> {
@@ -26,8 +26,8 @@ struct ApiResponse<T> {
 fn app(app_state: Arc<AppState>) -> Router {
     Router::new()
         .route("/health", get(health))
-        .route("/todo", get(list_todo).post(post_todo))
-        .route("/todo/:id", get(get_todo))
+        .route("/todo", get(list_todo_endpoint).post(post_todo_endpoint))
+        .route("/todo/:id", get(get_todo_endpoint).put(update_todo_endpoint))
         .with_state(app_state)
 }
 
@@ -81,73 +81,119 @@ async fn health() -> Json<Value> {
     Json(json!({ "msg": "Healthy" }))
 }
 
-async fn list_todo(headers: HeaderMap, State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    if let Some(user_id) = headers.get("user-id") {
-        tracing::info!("{}", user_id.to_str().unwrap());
+async fn list_todo_endpoint(headers: HeaderMap, State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    match check_user_header(headers) {
+        Ok(user_id) => {
+            let items = list_todos(&user_id, &state.todo_repo).await.unwrap();
 
-        let items = list_todos(OwnerId::new(user_id.to_str().unwrap().to_string()).unwrap(), &state.todo_repo).await.unwrap();
+            let response = ApiResponse {
+                data: items,
+                message: "Success".to_string(),
+            };
 
-        let response = ApiResponse {
-            data: items,
-            message: "Success".to_string(),
-        };
-
-        (StatusCode::OK, Json(response))
-    } else {
-        (StatusCode::BAD_REQUEST, Json(ApiResponse {
-            data: Vec::new(),
-            message: "Please set the 'user-id".to_string()
-        }))
+            (StatusCode::OK, Json(response))
+        },
+        Err(_) => {
+            (StatusCode::BAD_REQUEST, Json(ApiResponse {
+                data: Vec::new(),
+                message: "Please set the 'user-id".to_string()
+            }))
+        }
     }
 }
 
-async fn get_todo(Path(id): Path<String>, headers: HeaderMap, State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    if let Some(user_id) = headers.get("user-id") {
-        let todo = get_todos(OwnerId::new(user_id.to_str().unwrap().to_string()).unwrap(), ToDoId::parse(id).unwrap(), &state.todo_repo).await.unwrap();
+async fn get_todo_endpoint(Path(id): Path<String>, headers: HeaderMap, State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    match check_user_header(headers) {
+        Ok(user_id) => {
+            let todo = get_todos(&user_id, id.as_str(), &state.todo_repo).await.unwrap();
 
-        let response = ApiResponse {
-            data: todo,
-            message: "Success".to_string(),
-        };
+            let response = ApiResponse {
+                data: todo,
+                message: "Success".to_string(),
+            };
 
-        (StatusCode::OK, Json(response))
-    } else {
-        (StatusCode::BAD_REQUEST, Json(ApiResponse {
-            data: ToDoItem{
-                id: String::from(""),
-                title: String::from(""),
-                is_complete: false,
-                completed_on: String::from("")
-            },
-            message: "Please set the 'user-id".to_string()
-        }))
+            (StatusCode::OK, Json(response))
+        },
+        Err(_) => {
+            (StatusCode::BAD_REQUEST, Json(ApiResponse {
+                data: ToDoItem{
+                    id: String::from(""),
+                    title: String::from(""),
+                    is_complete: false,
+                    completed_on: String::from("")
+                },
+                message: "Please set the 'user-id".to_string()
+            }))
+        }
     }
 }
 
-async fn post_todo(
+async fn post_todo_endpoint(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(input): Json<CreateToDoCommand>,
 )  -> impl IntoResponse {
+    match check_user_header(headers) {
+        Ok(user_id) => {
+            let todo = create_to_do(user_id, input, &state.todo_repo).await.unwrap();
+
+            let response = ApiResponse {
+                data: todo,
+                message: "Success".to_string(),
+            };
+
+            (StatusCode::OK, Json(response))
+        },
+        Err(_) => {
+            (StatusCode::BAD_REQUEST, Json(ApiResponse {
+                data: ToDoItem{
+                    id: String::from(""),
+                    title: String::from(""),
+                    is_complete: false,
+                    completed_on: String::from("")
+                },
+                message: "Please set the 'user-id".to_string()
+            }))
+        }
+    }
+}
+
+async fn update_todo_endpoint(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(input): Json<UpdateToDoCommand>) -> impl IntoResponse
+{
+    match check_user_header(headers) {
+        Ok(user_id) => {
+            let todo = update_todo(input, &state.todo_repo)
+                .await.unwrap();
+
+            let response = ApiResponse {
+                data: todo,
+                message: "Success".to_string(),
+            };
+
+            (StatusCode::OK, Json(response))
+        },
+        Err(_) => {
+            (StatusCode::BAD_REQUEST, Json(ApiResponse {
+                data: ToDoItem{
+                    id: String::from(""),
+                    title: String::from(""),
+                    is_complete: false,
+                    completed_on: String::from("")
+                },
+                message: "Please set the 'user-id".to_string()
+            }))
+        }
+    }
+}
+
+fn check_user_header(headers: HeaderMap) -> Result<String, ()> {
     if let Some(user_id) = headers.get("user-id") {
-        let todo = create_to_do(user_id.to_str().unwrap().to_string(), input, &state.todo_repo).await.unwrap();
-
-        let response = ApiResponse {
-            data: todo,
-            message: "Success".to_string(),
-        };
-
-        (StatusCode::OK, Json(response))
+        return Ok(user_id.to_str().unwrap().to_string());
     } else {
-        (StatusCode::BAD_REQUEST, Json(ApiResponse {
-            data: ToDoItem{
-                id: String::from(""),
-                title: String::from(""),
-                is_complete: false,
-                completed_on: String::from("")
-            },
-            message: "Please set the 'user-id".to_string()
-        }))
+        return Err(());
     }
 }
 
@@ -196,6 +242,23 @@ mod tests {
                     Request::builder()
                         .uri("/todo")
                         .method(Method::POST)
+                        .header("user-id","jameseastham")
+                        .header("Content-Type", "application/json")
+                        .body(Body::from(body))
+                        .unwrap(),
+                )
+                .await
+                .unwrap()
+        }
+
+        async fn update(&self, user_id: &str, text: &str, todo_id: &str, set_as_complete: &bool) -> Response {
+            let body = format!("{{\"title\":\"{0}\", \"todo_id\":\"{1}\", \"set_as_complete\":\"{2}\", \"owner_id\":\"{3}\"}}", text, todo_id, set_as_complete, user_id);
+
+            self.router.clone()
+                .oneshot(
+                    Request::builder()
+                        .uri(format!("/todo/{0}", todo_id))
+                        .method(Method::PUT)
                         .header("user-id","jameseastham")
                         .header("Content-Type", "application/json")
                         .body(Body::from(body))
@@ -280,6 +343,68 @@ mod tests {
         assert_eq!(get_response.status(), StatusCode::OK);
         let get_body = get_response.into_body().collect().await.unwrap().to_bytes();
         assert!(!get_body.is_empty());
+    }
+
+    #[tokio::test]
+    async fn update_a_completed_todo_title_should_not_change() {
+        let shared_state = load_test_state().await;
+
+        let app = app(shared_state);
+
+        let driver = ApiDriver::new(Box::new(app));
+
+        let test_text = "My todo";
+
+        let response = driver.create("jameseastham", &test_text).await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert!(!body.is_empty());
+
+        let created_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*body.to_vec()).unwrap();
+
+        let update_response = driver.update("jameseastham", "Updated todo", &created_todo.data.id, &true).await;
+
+        let get_response = driver.get(&created_todo.data.id).await;
+
+        assert_eq!(get_response.status(), StatusCode::OK);
+        let get_body = get_response.into_body().collect().await.unwrap().to_bytes();
+        assert!(!get_body.is_empty());
+
+        let get_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*get_body.to_vec()).unwrap();
+
+        assert_eq!(&get_todo.data.title, "My todo");
+    }
+
+    #[tokio::test]
+    async fn update_a_incomplete_todo_title_should_change() {
+        let shared_state = load_test_state().await;
+
+        let app = app(shared_state);
+
+        let driver = ApiDriver::new(Box::new(app));
+
+        let test_text = "My todo";
+
+        let response = driver.create("jameseastham", &test_text).await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert!(!body.is_empty());
+
+        let created_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*body.to_vec()).unwrap();
+
+        let update_response = driver.update("jameseastham", "Updated todo", &created_todo.data.id, &false).await;
+
+        let get_response = driver.get(&created_todo.data.id).await;
+
+        assert_eq!(get_response.status(), StatusCode::OK);
+        let get_body = get_response.into_body().collect().await.unwrap().to_bytes();
+        assert!(!get_body.is_empty());
+
+        let get_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*get_body.to_vec()).unwrap();
+
+        assert_eq!(&get_todo.data.title, "Updated todo");
     }
 
     #[tokio::test]

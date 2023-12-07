@@ -29,7 +29,7 @@ pub enum ToDo {
 impl ToDo {
     /// Create a new ToDo item from a title and owner.
     /// Returns a new IncompleteToDo
-    pub fn new(title: Title, owner_id: OwnerId) -> Result<ToDo, Vec<ValidationError>> {
+    pub(crate) fn new(title: Title, owner_id: OwnerId) -> Result<ToDo, Vec<ValidationError>> {
         let title_res = ToDo::check_title(&title);
         let owner_res = ToDo::check_owner_id(&owner_id);
 
@@ -53,12 +53,12 @@ impl ToDo {
 
         Ok(ToDo::Incomplete(IncompleteToDo {
             to_do_id: id,
-            title: title,
+            title,
             owner: owner_id,
         }))
     }
 
-    pub fn empty() -> ToDo {
+    pub(crate) fn empty() -> ToDo {
         ToDo::Incomplete(IncompleteToDo {
             to_do_id: ToDoId::empty(),
             title: Title::empty(),
@@ -67,7 +67,7 @@ impl ToDo {
     }
 
     /// Parse a ToDo from a set of existing values
-    pub fn parse(
+    pub(crate) fn parse(
         title: Title,
         owner_id: OwnerId,
         status: Option<String>,
@@ -96,21 +96,21 @@ impl ToDo {
         }
 
         let id = match &existing_id {
-            Option::None => ToDoId::new(),
-            Option::Some(val) => ToDoId::parse(val.to_string()).unwrap(),
+            None => ToDoId::new(),
+            Some(val) => ToDoId::parse(val.to_string()).unwrap(),
         };
 
         match status {
-            Option::Some(status_val) => {
+            Some(status_val) => {
                 match status_val.as_str() {
                     INCOMPLETE_STATUS => Ok(ToDo::Incomplete(IncompleteToDo {
                         to_do_id: existing_id.unwrap(),
-                        title: title,
+                        title,
                         owner: owner_id,
                     })),
                     COMPLETE_STATUS => {
                         let parsed_completed_on = match completed_on {
-                            Option::None => {
+                            None => {
                                 errors.push(ValidationError::new("Is status is completed a valid completed on date must be passed".to_string()));
                                 return Err(errors);
                             }
@@ -119,28 +119,28 @@ impl ToDo {
 
                         Ok(ToDo::Complete(CompleteToDo {
                             to_do_id: existing_id.unwrap(),
-                            title: title,
+                            title,
                             owner: owner_id,
                             completed_on: parsed_completed_on,
                         }))
                     }
                     _ => Ok(ToDo::Incomplete(IncompleteToDo {
                         to_do_id: id,
-                        title: title,
+                        title,
                         owner: owner_id,
                     })),
                 }
             }
             _ => Ok(ToDo::Incomplete(IncompleteToDo {
                 to_do_id: id,
-                title: title,
+                title,
                 owner: owner_id,
             })),
         }
     }
 
     /// GET the title of the ToDo
-    pub fn get_title(&self) -> String {
+    pub(crate) fn get_title(&self) -> String {
         match &self {
             ToDo::Incomplete(incomplete) => incomplete.title.to_string(),
             ToDo::Complete(complete) => complete.title.to_string(),
@@ -148,7 +148,7 @@ impl ToDo {
     }
 
     /// GET the date the ToDo was completed. Returns an empty string if incomplete.
-    pub fn get_completed_on(&self) -> String {
+    pub(crate) fn get_completed_on(&self) -> String {
         match &self {
             ToDo::Incomplete(_) => "".to_string(),
             ToDo::Complete(complete) => complete.completed_on.to_rfc3339(),
@@ -156,7 +156,7 @@ impl ToDo {
     }
 
     /// GET the owner of the ToDo
-    pub fn get_owner(&self) -> String {
+    pub(crate) fn get_owner(&self) -> String {
         match &self {
             ToDo::Incomplete(incomplete) => incomplete.owner.to_string(),
             ToDo::Complete(complete) => complete.owner.to_string(),
@@ -164,7 +164,7 @@ impl ToDo {
     }
 
     /// GET the ID of the ToDo
-    pub fn get_id(&self) -> String {
+    pub(crate) fn get_id(&self) -> String {
         match &self {
             ToDo::Incomplete(incomplete) => incomplete.to_do_id.to_string(),
             ToDo::Complete(complete) => complete.to_do_id.to_string(),
@@ -172,7 +172,7 @@ impl ToDo {
     }
 
     /// GET the status of the ToDo
-    pub fn get_status(&self) -> String {
+    pub(crate) fn get_status(&self) -> String {
         match &self {
             ToDo::Incomplete(_) => String::from(INCOMPLETE_STATUS),
             ToDo::Complete(_) => String::from(COMPLETE_STATUS),
@@ -182,7 +182,7 @@ impl ToDo {
     /// Update the title of the existing ToDo.
     /// If the ToDo is already completed then the title cannot be updated.
     /// Returns a new ToDo
-    pub fn update_title(self, new_title: String) -> Result<ToDo, ValidationError> {
+    pub(crate) fn update_title(self, new_title: String) -> Result<ToDo, ValidationError> {
         let new_title_value = Title::new(new_title);
 
         if new_title_value.is_err() {
@@ -207,7 +207,7 @@ impl ToDo {
     }
 
     /// Set the ToDo as completed
-    pub fn set_completed(self) -> ToDo {
+    pub(crate) fn set_completed(self) -> ToDo {
         match &self {
             ToDo::Incomplete(incomplete) => ToDo::Complete(CompleteToDo {
                 to_do_id: incomplete.to_do_id.clone(),
@@ -225,7 +225,7 @@ impl ToDo {
     }
 
     /// Convert the ToDo into a ToDoItem Data Transfer Object
-    pub fn into_dto(self) -> ToDoItem {
+    pub(crate) fn into_dto(self) -> ToDoItem {
         match &self {
             ToDo::Incomplete(incomplete) => ToDoItem {
                 id: incomplete.to_do_id.to_string(),
@@ -285,7 +285,7 @@ pub struct CompleteToDo {
 }
 
 #[derive(Clone)]
-pub struct ToDoId {
+pub(crate) struct ToDoId {
     value: String,
 }
 
@@ -320,7 +320,7 @@ impl ToDoId {
 }
 
 #[derive(Clone)]
-pub struct Title {
+pub(crate) struct Title {
     value: String,
 }
 
@@ -351,7 +351,7 @@ impl Title {
 }
 
 #[derive(Clone)]
-pub struct OwnerId {
+pub(crate) struct OwnerId {
     value: String,
 }
 
@@ -382,7 +382,7 @@ impl OwnerId {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub enum IsComplete {
+pub(crate) enum IsComplete {
     INCOMPLETE,
     COMPLETE,
 }
@@ -410,7 +410,7 @@ pub trait ToDoRepo
 mod tests {
     use chrono::{DateTime, Utc};
 
-    use crate::application::entities::{OwnerId, Title, ToDo};
+    use crate::application::domain::{OwnerId, Title, ToDo};
 
     use super::ToDoId;
 
@@ -503,7 +503,7 @@ mod tests {
     fn new_id_should_return_valid_to_do_id() {
         let option_1 = Some("Hello");
         let option_2: Option<i32> = Some(123456);
-        let option_3: Option<i32> = Option::None;
+        let option_3: Option<i32> = None;
 
         let valid_res = option_1.zip(option_2).map(|(opt1, opt2)| -> String {
             format!("{opt1} - {opt2}")
@@ -513,8 +513,8 @@ mod tests {
             format!("{opt1} - {opt2}")
         });
 
-        assert_eq!(valid_res, Option::Some("Hello - 123456".to_string()));
-        assert_eq!(none_res, Option::None);
+        assert_eq!(valid_res, Some("Hello - 123456".to_string()));
+        assert_eq!(none_res, None);
 
         let to_do_id = ToDoId::new();
 

@@ -1,4 +1,4 @@
-use crate::application::entities::{ToDoRepo, ToDo, Title, OwnerId, ToDoId};
+use crate::application::domain::{ToDoRepo, ToDo, Title, OwnerId, ToDoId};
 use async_trait::async_trait;
 use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_dynamodb::Client;
@@ -45,7 +45,7 @@ impl ToDoRepo for DynamoDbToDoRepo {
                                     .unwrap(),
                             ),
                             match item.get("completedOn") {
-                                Option::None => Option::None,
+                                None => None,
                                 Some(val) => {
                                     Some(DateTime::parse_from_rfc3339(val.as_s().unwrap()).unwrap())
                                 }
@@ -62,21 +62,25 @@ impl ToDoRepo for DynamoDbToDoRepo {
     }
 
     async fn create(&self, todo: &ToDo) -> Result<(), RepositoryError> {
-        let _ = self
+        let mut dynamo_request_builder = self
             .client
             .put_item()
             .table_name(&self.table_name)
-            .key("PK", generate_pk(&todo.get_owner().to_string()))
-            .key("SK", generate_sk(&todo.get_id().to_string()))
+            .item("PK", generate_pk(&todo.get_owner().to_string()))
+            .item("SK", generate_sk(&todo.get_id().to_string()))
             .item("id", AttributeValue::S(todo.get_id().into()))
             .item("title", AttributeValue::S(todo.get_title().into()))
             .item("status", AttributeValue::S(todo.get_status().into()))
-            .item("ownerId", AttributeValue::S(todo.get_owner().into()))
-            .item(
+            .item("ownerId", AttributeValue::S(todo.get_owner().into()));
+
+        if !todo.get_completed_on().is_empty() {
+            dynamo_request_builder = dynamo_request_builder.item(
                 "completedOn",
                 AttributeValue::S(todo.get_completed_on().into()),
-            )
-            .send()
+            );
+        }
+
+        let _ = dynamo_request_builder.send()
             .await;
 
         Ok(())
@@ -106,7 +110,7 @@ impl ToDoRepo for DynamoDbToDoRepo {
                             .unwrap(),
                     ),
                     match attributes.get("completedOn") {
-                        Option::None => Option::None,
+                        None => None,
                         Some(val) => {
                             Some(DateTime::parse_from_rfc3339(val.as_s().unwrap()).unwrap())
                         }

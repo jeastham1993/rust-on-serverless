@@ -14,7 +14,7 @@ impl RepositoryError {
 
     pub fn to_string(&self) -> String {
         // We don't want to disclose the secret
-        format!("Error persisiting data {0}", self.error_message)
+        format!("Error persisting data {0}", self.error_message)
     }
 }
 
@@ -25,7 +25,7 @@ impl RepositoryError {
 // which string failed to parse without modifying our types to carry that information.
 impl fmt::Display for RepositoryError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Error persisiting data {0}", self.error_message)
+        write!(f, "Error persisting data {0}", self.error_message)
     }
 }
 
