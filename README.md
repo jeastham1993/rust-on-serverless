@@ -28,7 +28,9 @@ A simple API built with API Gateway and single purpose Lambda function handlers.
 
 [Link](./src/axum-lambda-web)
 
-An [Axum](https://github.com/tokio-rs/axum) web server running on AWS Lambda.
+An [Axum](https://github.com/tokio-rs/axum) web server running on AWS Lambda. Demonstrates the use of the [Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter) and how principles of hexagonal architecture and domain driven design are applied to a Rust application.
+
+[Blog Post discussing the ideas](https://jameseastham.co.uk/post/software-development/hexagaonal-architecture-rust/)
 
 ### Server Side Rendering on Lambda
 

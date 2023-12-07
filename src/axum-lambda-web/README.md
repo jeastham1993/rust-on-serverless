@@ -41,3 +41,5 @@ AWS SAM is used to deploy this application to AWS.
 sam build
 sam deploy --guided
 ```
+
+[Blog Post discussing the ideas](https://jameseastham.co.uk/post/software-development/hexagaonal-architecture-rust/)
