@@ -3,20 +3,22 @@ mod application;
 use std::env;
 
 use crate::application::adapters::DynamoDbToDoRepo;
-use aws_config::{BehaviorVersion, Region, SdkConfig};
-use aws_sdk_dynamodb::Client;
-use axum::{extract::Path, extract::State, response::Json, routing::get, Router};
-use serde_json::{json, Value};
-use std::sync::Arc;
-use axum::response::IntoResponse;
-use http::{HeaderMap, StatusCode};
-use serde::{Deserialize, Serialize};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use crate::application::public_types::{CreateToDoCommand, ToDoItem, UpdateToDoCommand};
 use crate::application::commands::{create_to_do, update_todo};
 use crate::application::domain::AppState;
-use crate::application::messaging::{EventBridgeEventPublisher, InMemoryMessagePublisher, MessagePublisher};
-use crate::application::queries::{list_todos, get_todos};
+use crate::application::messaging::{
+    EventBridgeEventPublisher, InMemoryMessagePublisher, MessagePublisher,
+};
+use crate::application::public_types::{CreateToDoCommand, ToDoItem, UpdateToDoCommand};
+use crate::application::queries::{get_todos, list_todos};
+use aws_config::{BehaviorVersion, Region, SdkConfig};
+use aws_sdk_dynamodb::Client;
+use axum::response::IntoResponse;
+use axum::{extract::Path, extract::State, response::Json, routing::get, Router};
+use http::{HeaderMap, StatusCode};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use std::sync::Arc;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(Serialize, Deserialize)]
 struct ApiResponse<T> {
@@ -28,7 +30,10 @@ fn app(app_state: Arc<AppState>) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/todo", get(list_todo_endpoint).post(post_todo_endpoint))
-        .route("/todo/:id", get(get_todo_endpoint).put(update_todo_endpoint))
+        .route(
+            "/todo/:id",
+            get(get_todo_endpoint).put(update_todo_endpoint),
+        )
         .with_state(app_state)
 }
 
@@ -68,7 +73,7 @@ async fn main() {
             dynamodb_client.clone(),
             table_name.clone(),
         )),
-        message_publisher: Arc::new(EventBridgeEventPublisher::new(eventbridge_client))
+        message_publisher: Arc::new(EventBridgeEventPublisher::new(eventbridge_client)),
     });
 
     if use_local.is_ok() {
@@ -77,7 +82,7 @@ async fn main() {
                 dynamodb_client.clone(),
                 table_name.clone(),
             )),
-            message_publisher: Arc::new(InMemoryMessagePublisher::new())
+            message_publisher: Arc::new(InMemoryMessagePublisher::new()),
         });
     }
 
@@ -94,7 +99,10 @@ async fn health() -> Json<Value> {
     Json(json!({ "msg": "Healthy" }))
 }
 
-async fn list_todo_endpoint(headers: HeaderMap, State(state): State<Arc<AppState>>) -> impl IntoResponse {
+async fn list_todo_endpoint(
+    headers: HeaderMap,
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
     match check_user_header(headers) {
         Ok(user_id) => {
             let items = list_todos(&user_id, &state.todo_repo).await.unwrap();
@@ -105,20 +113,27 @@ async fn list_todo_endpoint(headers: HeaderMap, State(state): State<Arc<AppState
             };
 
             (StatusCode::OK, Json(response))
-        },
-        Err(_) => {
-            (StatusCode::BAD_REQUEST, Json(ApiResponse {
-                data: Vec::new(),
-                message: "Please set the 'user-id".to_string()
-            }))
         }
+        Err(_) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse {
+                data: Vec::new(),
+                message: "Please set the 'user-id".to_string(),
+            }),
+        ),
     }
 }
 
-async fn get_todo_endpoint(Path(id): Path<String>, headers: HeaderMap, State(state): State<Arc<AppState>>) -> impl IntoResponse {
+async fn get_todo_endpoint(
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
     match check_user_header(headers) {
         Ok(user_id) => {
-            let todo = get_todos(&user_id, id.as_str(), &state.todo_repo).await.unwrap();
+            let todo = get_todos(&user_id, id.as_str(), &state.todo_repo)
+                .await
+                .unwrap();
 
             let response = ApiResponse {
                 data: todo,
@@ -126,18 +141,21 @@ async fn get_todo_endpoint(Path(id): Path<String>, headers: HeaderMap, State(sta
             };
 
             (StatusCode::OK, Json(response))
-        },
-        Err(_) => {
-            (StatusCode::BAD_REQUEST, Json(ApiResponse {
-                data: ToDoItem{
+        }
+        Err(_) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse {
+                data: ToDoItem {
                     id: String::from(""),
                     title: String::from(""),
                     is_complete: false,
-                    completed_on: String::from("")
+                    completed_on: String::from(""),
+                    description: String::from(""),
+                    due_date: String::from("")
                 },
-                message: "Please set the 'user-id".to_string()
-            }))
-        }
+                message: "Please set the 'user-id".to_string(),
+            }),
+        ),
     }
 }
 
@@ -145,10 +163,12 @@ async fn post_todo_endpoint(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(input): Json<CreateToDoCommand>,
-)  -> impl IntoResponse {
+) -> impl IntoResponse {
     match check_user_header(headers) {
         Ok(user_id) => {
-            let todo = create_to_do(user_id, input, &state.todo_repo, &state.message_publisher).await.unwrap();
+            let todo = create_to_do(user_id, input, &state.todo_repo, &state.message_publisher)
+                .await
+                .unwrap();
 
             let response = ApiResponse {
                 data: todo,
@@ -156,18 +176,21 @@ async fn post_todo_endpoint(
             };
 
             (StatusCode::OK, Json(response))
-        },
-        Err(_) => {
-            (StatusCode::BAD_REQUEST, Json(ApiResponse {
-                data: ToDoItem{
+        }
+        Err(_) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse {
+                data: ToDoItem {
                     id: String::from(""),
                     title: String::from(""),
                     is_complete: false,
-                    completed_on: String::from("")
+                    completed_on: String::from(""),
+                    description: String::from(""),
+                    due_date: String::from("")
                 },
-                message: "Please set the 'user-id".to_string()
-            }))
-        }
+                message: "Please set the 'user-id".to_string(),
+            }),
+        ),
     }
 }
 
@@ -175,12 +198,19 @@ async fn update_todo_endpoint(
     Path(id): Path<String>,
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(input): Json<UpdateToDoCommand>) -> impl IntoResponse
-{
+    Json(input): Json<UpdateToDoCommand>,
+) -> impl IntoResponse {
     match check_user_header(headers) {
         Ok(user_id) => {
-            let todo = update_todo(user_id, id, input, &state.todo_repo, &state.message_publisher)
-                .await.unwrap();
+            let todo = update_todo(
+                user_id,
+                id,
+                input,
+                &state.todo_repo,
+                &state.message_publisher,
+            )
+            .await
+            .unwrap();
 
             let response = ApiResponse {
                 data: todo,
@@ -188,18 +218,21 @@ async fn update_todo_endpoint(
             };
 
             (StatusCode::OK, Json(response))
-        },
-        Err(_) => {
-            (StatusCode::BAD_REQUEST, Json(ApiResponse {
-                data: ToDoItem{
+        }
+        Err(_) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse {
+                data: ToDoItem {
                     id: String::from(""),
                     title: String::from(""),
                     is_complete: false,
-                    completed_on: String::from("")
+                    completed_on: String::from(""),
+                    description: String::from(""),
+                    due_date: String::from("")
                 },
-                message: "Please set the 'user-id".to_string()
-            }))
-        }
+                message: "Please set the 'user-id".to_string(),
+            }),
+        ),
     }
 }
 
@@ -214,33 +247,31 @@ fn check_user_header(headers: HeaderMap) -> Result<String, ()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::response::Response;
     use axum::{
         body::Body,
         http::{self, Request, StatusCode},
     };
-    use axum::response::Response;
-    use http_body_util::BodyExt;
     use http::Method;
+    use http_body_util::BodyExt;
     use tower::ServiceExt;
 
-
-    struct ApiDriver{
-        router: Box<Router>
+    struct ApiDriver {
+        router: Box<Router>,
     }
 
     impl ApiDriver {
         fn new(router: Box<Router>) -> Self {
-            Self {
-                router
-            }
+            Self { router }
         }
 
         async fn list(&self) -> Response {
-            self.router.clone()
+            self.router
+                .clone()
                 .oneshot(
                     Request::builder()
                         .uri("/todo")
-                        .header("user-id","jameseastham")
+                        .header("user-id", "jameseastham")
                         .body(Body::empty())
                         .unwrap(),
                 )
@@ -248,15 +279,16 @@ mod tests {
                 .unwrap()
         }
 
-        async fn create(&self, text: &str) -> Response {
-            let body = format!("{{\"title\":\"{0}\"}}", text);
+        async fn create(&self, text: &str, description: &str, due_date: &str) -> Response {
+            let body = format!("{{\"title\":\"{0}\", \"description\":\"{1}\", \"due_date\":\"{2}\"}}", text, description, due_date);
 
-            self.router.clone()
+            self.router
+                .clone()
                 .oneshot(
                     Request::builder()
                         .uri("/todo")
                         .method(Method::POST)
-                        .header("user-id","jameseastham")
+                        .header("user-id", "jameseastham")
                         .header("Content-Type", "application/json")
                         .body(Body::from(body))
                         .unwrap(),
@@ -265,15 +297,19 @@ mod tests {
                 .unwrap()
         }
 
-        async fn update(&self, text: &str, todo_id: &str, set_as_complete: &bool) -> Response {
-            let body = format!("{{\"title\":\"{0}\", \"set_as_complete\":{1}}}", text, set_as_complete);
+        async fn update(&self, text: &str, todo_id: &str, set_as_complete: &bool, description: &str, due_date: &str) -> Response {
+            let body = format!(
+                "{{\"title\":\"{0}\", \"set_as_complete\":{1}, \"description\":\"{2}\", \"due_date\":\"{3}\"}}",
+                text, set_as_complete, description, due_date
+            );
 
-            self.router.clone()
+            self.router
+                .clone()
                 .oneshot(
                     Request::builder()
                         .uri(format!("/todo/{0}", todo_id))
                         .method(Method::PUT)
-                        .header("user-id","jameseastham")
+                        .header("user-id", "jameseastham")
                         .header("Content-Type", "application/json")
                         .body(Body::from(body))
                         .unwrap(),
@@ -283,12 +319,13 @@ mod tests {
         }
 
         async fn get(&self, id: &String) -> Response {
-            self.router.clone()
+            self.router
+                .clone()
                 .oneshot(
                     Request::builder()
                         .uri(format!("/todo/{0}", id))
                         .method(Method::GET)
-                        .header("user-id","jameseastham")
+                        .header("user-id", "jameseastham")
                         .body(Body::empty())
                         .unwrap(),
                 )
@@ -315,7 +352,7 @@ mod tests {
                 dynamodb_client.clone(),
                 table_name.clone(),
             )),
-            message_publisher: Arc::new(InMemoryMessagePublisher::new())
+            message_publisher: Arc::new(InMemoryMessagePublisher::new()),
         })
     }
 
@@ -344,7 +381,7 @@ mod tests {
 
         let test_text = "My todo";
 
-        let response = driver.create(&test_text).await;
+        let response = driver.create(&test_text, "", "").await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
@@ -370,7 +407,7 @@ mod tests {
 
         let test_text = "My todo";
 
-        let response = driver.create(&test_text).await;
+        let response = driver.create(&test_text, "", "").await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
@@ -378,7 +415,9 @@ mod tests {
 
         let created_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*body.to_vec()).unwrap();
 
-        let update_response = driver.update("Updated todo", &created_todo.data.id, &true).await;
+        let update_response = driver
+            .update("Updated todo", &created_todo.data.id, &true, "updated description", "2023-08-12T00:00:00+00:00")
+            .await;
 
         let get_response = driver.get(&created_todo.data.id).await;
 
@@ -389,10 +428,12 @@ mod tests {
         let get_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*get_body.to_vec()).unwrap();
 
         assert_eq!(&get_todo.data.title, "My todo");
+        assert_eq!(&get_todo.data.description, "");
+        assert_eq!(&get_todo.data.due_date, "");
     }
 
     #[tokio::test]
-    async fn update_a_incomplete_todo_title_should_change() {
+    async fn update_a_incomplete_todo_info_should_change() {
         let shared_state = load_test_state().await;
 
         let app = app(shared_state);
@@ -401,7 +442,7 @@ mod tests {
 
         let test_text = "My todo";
 
-        let response = driver.create(&test_text).await;
+        let response = driver.create(&test_text, "", "").await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
@@ -409,7 +450,9 @@ mod tests {
 
         let created_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*body.to_vec()).unwrap();
 
-        let update_response = driver.update("Updated todo", &created_todo.data.id, &false).await;
+        let update_response = driver
+            .update("Updated todo", &created_todo.data.id, &false, "updated description", "2023-08-12T00:00:00+00:00")
+            .await;
         assert_eq!(update_response.status(), StatusCode::OK);
 
         let get_response = driver.get(&created_todo.data.id).await;
@@ -421,6 +464,8 @@ mod tests {
         let get_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*get_body.to_vec()).unwrap();
 
         assert_eq!(&get_todo.data.title, "Updated todo");
+        assert_eq!(&get_todo.data.description, "updated description");
+        assert_eq!(&get_todo.data.due_date, "2023-08-12T00:00:00+00:00");
     }
 
     #[tokio::test]

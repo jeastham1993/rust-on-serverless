@@ -1,8 +1,11 @@
-use std::sync::Arc;
-use crate::application::domain::{ToDoRepo};
+use crate::application::domain::ToDoRepo;
 use crate::application::public_types::ToDoItem;
+use std::sync::Arc;
 
-pub async fn list_todos(owner: &String, client: &Arc<dyn ToDoRepo + Send + Sync>) -> Result<Vec<ToDoItem>, ()> {
+pub async fn list_todos(
+    owner: &String,
+    client: &Arc<dyn ToDoRepo + Send + Sync>,
+) -> Result<Vec<ToDoItem>, ()> {
     let query_res = client.list(owner).await;
 
     match query_res {
@@ -24,9 +27,7 @@ pub async fn get_todos(
     to_do_id: &str,
     client: &Arc<dyn ToDoRepo + Send + Sync>,
 ) -> Result<ToDoItem, ()> {
-    let query_res = client
-        .get(owner, to_do_id)
-        .await;
+    let query_res = client.get(owner, to_do_id).await;
 
     match query_res {
         Ok(todo) => Ok(todo.into_dto()),
@@ -39,21 +40,21 @@ pub async fn get_todos(
 /// These tests are run using the `cargo test` command.
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use async_trait::async_trait;
     use chrono::{DateTime, Utc};
+    use std::sync::Arc;
 
-    use crate::application::{
-        domain::{OwnerId, ToDoRepo, Title, ToDo, ToDoId},
-        error_types::RepositoryError,
-    };
     use crate::application::domain::AppState;
     use crate::application::messaging::InMemoryMessagePublisher;
     use crate::application::queries::{get_todos, list_todos};
+    use crate::application::{
+        domain::{OwnerId, Title, ToDo, ToDoId, ToDoRepo},
+        error_types::RepositoryError,
+    };
 
     struct MockRepository {
         should_fail: bool,
-        to_do_status_to_return: String
+        to_do_status_to_return: String,
     }
 
     #[async_trait]
@@ -71,12 +72,16 @@ mod tests {
                     OwnerId::new("owner".to_string()).unwrap(),
                     Some(self.to_do_status_to_return.to_string()),
                     Some(ToDoId::parse("id".to_string()).unwrap()),
+                    Some(String::from("Description")),
+                    Some(DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap()),
                     match self.to_do_status_to_return.as_str() {
-                        "COMPLETE" => Some(DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap()),
-                        _ => None
-                    }
+                        "COMPLETE" => {
+                            Some(DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap())
+                        }
+                        _ => None,
+                    },
                 )
-                    .unwrap(),
+                .unwrap(),
             );
 
             Ok(todos)
@@ -100,12 +105,16 @@ mod tests {
                 OwnerId::new("owner".to_string()).unwrap(),
                 Some(self.to_do_status_to_return.to_string()),
                 Some(ToDoId::parse("id".to_string()).unwrap()),
+                Some(String::from("Description")),
+                Some(DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap()),
                 match self.to_do_status_to_return.as_str() {
-                    "COMPLETE" => Some(DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap()),
-                    _ => None
-                }
+                    "COMPLETE" => {
+                        Some(DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap())
+                    }
+                    _ => None,
+                },
             )
-                .unwrap())
+            .unwrap())
         }
     }
 
@@ -116,7 +125,7 @@ mod tests {
                 should_fail: false,
                 to_do_status_to_return: "INCOMPLETE".to_string(),
             }),
-            message_publisher: Arc::new(InMemoryMessagePublisher::new())
+            message_publisher: Arc::new(InMemoryMessagePublisher::new()),
         });
 
         let to_dos = list_todos(&String::from("owner"), &shared_state.todo_repo).await;
@@ -132,15 +141,10 @@ mod tests {
                 should_fail: false,
                 to_do_status_to_return: "INCOMPLETE".to_string(),
             }),
-            message_publisher: Arc::new(InMemoryMessagePublisher::new())
+            message_publisher: Arc::new(InMemoryMessagePublisher::new()),
         });
 
-        let to_dos = get_todos(
-            &String::from("owner"),
-            "the id",
-            &shared_state.todo_repo,
-        )
-            .await;
+        let to_dos = get_todos(&String::from("owner"), "the id", &shared_state.todo_repo).await;
 
         assert_eq!(to_dos.is_err(), false);
         assert_eq!(to_dos.unwrap().title, "title");
@@ -153,7 +157,7 @@ mod tests {
                 should_fail: true,
                 to_do_status_to_return: "INCOMPLETE".to_string(),
             }),
-            message_publisher: Arc::new(InMemoryMessagePublisher::new())
+            message_publisher: Arc::new(InMemoryMessagePublisher::new()),
         });
 
         let to_dos = list_todos(&String::from("owner"), &shared_state.todo_repo).await;

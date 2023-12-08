@@ -1,10 +1,11 @@
+use crate::application::messaging::MessagePublisher;
 use async_trait::async_trait;
-use chrono::{DateTime, FixedOffset, Utc};
+use chrono::format::Fixed;
+use chrono::{DateTime, FixedOffset, ParseResult, Utc};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
 use uuid::Uuid;
-use crate::application::messaging::MessagePublisher;
 
 use super::{
     error_types::{RepositoryError, ValidationError},
@@ -13,7 +14,7 @@ use super::{
 
 pub struct AppState {
     pub todo_repo: Arc<dyn ToDoRepo + Send + Sync>,
-    pub message_publisher: Arc<dyn MessagePublisher + Send + Sync>
+    pub message_publisher: Arc<dyn MessagePublisher + Send + Sync>,
 }
 
 const INCOMPLETE_STATUS: &str = "INCOMPLETE";
@@ -31,7 +32,12 @@ pub enum ToDo {
 impl ToDo {
     /// Create a new ToDo item from a title and owner.
     /// Returns a new IncompleteToDo
-    pub(crate) fn new(title: Title, owner_id: OwnerId) -> Result<ToDo, Vec<ValidationError>> {
+    pub(crate) fn new(
+        title: Title,
+        owner_id: OwnerId,
+        description: Option<String>,
+        due_date: Option<DateTime<FixedOffset>>,
+    ) -> Result<ToDo, Vec<ValidationError>> {
         let title_res = ToDo::check_title(&title);
         let owner_res = ToDo::check_owner_id(&owner_id);
 
@@ -57,7 +63,9 @@ impl ToDo {
             to_do_id: id,
             title,
             owner: owner_id,
-            has_changes: false
+            description,
+            due_date,
+            has_changes: false,
         }))
     }
 
@@ -66,14 +74,16 @@ impl ToDo {
             to_do_id: ToDoId::empty(),
             title: Title::empty(),
             owner: OwnerId::empty(),
-            has_changes: false
+            description: None,
+            due_date: None,
+            has_changes: false,
         })
     }
 
     pub(crate) fn has_changes(&self) -> bool {
         match &self {
             ToDo::Incomplete(incomplete) => incomplete.has_changes,
-            ToDo::Complete(complete) => complete.has_changes
+            ToDo::Complete(complete) => complete.has_changes,
         }
     }
 
@@ -83,10 +93,11 @@ impl ToDo {
         owner_id: OwnerId,
         status: Option<String>,
         existing_id: Option<ToDoId>,
+        description: Option<String>,
+        due_date: Option<DateTime<FixedOffset>>,
         completed_on: Option<DateTime<FixedOffset>>,
     ) -> Result<ToDo, Vec<ValidationError>> {
         let mut errors: Vec<ValidationError> = Vec::new();
-
 
         let title_res = ToDo::check_title(&title);
         let owner_res = ToDo::check_owner_id(&owner_id);
@@ -118,7 +129,9 @@ impl ToDo {
                         to_do_id: existing_id.unwrap(),
                         title,
                         owner: owner_id,
-                        has_changes: false
+                        description,
+                        due_date,
+                        has_changes: false,
                     })),
                     COMPLETE_STATUS => {
                         let parsed_completed_on = match completed_on {
@@ -133,23 +146,29 @@ impl ToDo {
                             to_do_id: existing_id.unwrap(),
                             title,
                             owner: owner_id,
+                            description,
+                            due_date,
                             completed_on: parsed_completed_on,
-                            has_changes: false
+                            has_changes: false,
                         }))
                     }
                     _ => Ok(ToDo::Incomplete(IncompleteToDo {
                         to_do_id: id,
                         title,
+                        description,
+                        due_date,
                         owner: owner_id,
-                        has_changes: false
+                        has_changes: false,
                     })),
                 }
             }
             _ => Ok(ToDo::Incomplete(IncompleteToDo {
                 to_do_id: id,
                 title,
+                description,
+                due_date,
                 owner: owner_id,
-                has_changes: false
+                has_changes: false,
             })),
         }
     }
@@ -159,6 +178,32 @@ impl ToDo {
         match &self {
             ToDo::Incomplete(incomplete) => incomplete.title.to_string(),
             ToDo::Complete(complete) => complete.title.to_string(),
+        }
+    }
+
+    /// GET the title of the ToDo
+    pub(crate) fn get_description(&self) -> String {
+        let desc = match &self {
+            ToDo::Incomplete(incomplete) => &incomplete.description,
+            ToDo::Complete(complete) => &complete.description,
+        };
+
+        match desc {
+            None => String::from(""),
+            Some(val) => val.clone()
+        }
+    }
+
+    /// GET the title of the ToDo
+    pub(crate) fn get_due_date(&self) -> String {
+        let due_date = match &self {
+            ToDo::Incomplete(incomplete) => incomplete.due_date,
+            ToDo::Complete(complete) => complete.due_date,
+        };
+
+        match due_date {
+            None => String::from(""),
+            Some(date) => date.to_rfc3339()
         }
     }
 
@@ -209,18 +254,90 @@ impl ToDo {
                 to_do_id: incomplete.to_do_id.clone(),
                 title: new_title_value.unwrap(),
                 owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
-                has_changes: true
+                description: incomplete.description.clone(),
+                due_date: incomplete.due_date.clone(),
+                has_changes: true,
             }),
             ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
                 to_do_id: complete.to_do_id.clone(),
                 title: Title::new(complete.title.to_string()).unwrap(),
                 owner: OwnerId::new(complete.owner.to_string()).unwrap(),
+                description: complete.description.clone(),
+                due_date: complete.due_date.clone(),
                 completed_on: complete.completed_on,
-                has_changes: self.has_changes()
+                has_changes: self.has_changes(),
             }),
         };
 
         Ok(response)
+    }
+
+    pub(crate) fn update_description(
+        self,
+        new_description: Option<String>,
+    ) -> ToDo {
+        let response = match new_description {
+            None => self,
+            Some(desc) => {
+                match &self {
+                    ToDo::Incomplete(incomplete) => ToDo::Incomplete(IncompleteToDo {
+                        to_do_id: incomplete.to_do_id.clone(),
+                        title: incomplete.title.clone(),
+                        owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
+                        description: Some(desc),
+                        due_date: incomplete.due_date.clone(),
+                        has_changes: true,
+                    }),
+                    ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
+                        to_do_id: complete.to_do_id.clone(),
+                        title: Title::new(complete.title.to_string()).unwrap(),
+                        owner: OwnerId::new(complete.owner.to_string()).unwrap(),
+                        description: complete.description.clone(),
+                        due_date: complete.due_date.clone(),
+                        completed_on: complete.completed_on,
+                        has_changes: self.has_changes(),
+                    }),
+                }
+            }
+        };
+
+        response
+    }
+    pub(crate) fn update_due_date(
+        self,
+        new_due_date: Option<String>,
+    ) -> ToDo {
+        let response = match new_due_date {
+            None => self,
+            Some(due_date) => {
+                let parsed_date = DateTime::parse_from_rfc3339(due_date.as_str());
+
+                match parsed_date {
+                    Ok(date) => match &self {
+                        ToDo::Incomplete(incomplete) => ToDo::Incomplete(IncompleteToDo {
+                            to_do_id: incomplete.to_do_id.clone(),
+                            title: incomplete.title.clone(),
+                            owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
+                            description: incomplete.description.clone(),
+                            due_date: Some(date),
+                            has_changes: true,
+                        }),
+                        ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
+                            to_do_id: complete.to_do_id.clone(),
+                            title: Title::new(complete.title.to_string()).unwrap(),
+                            owner: OwnerId::new(complete.owner.to_string()).unwrap(),
+                            description: complete.description.clone(),
+                            due_date: complete.due_date.clone(),
+                            completed_on: complete.completed_on,
+                            has_changes: self.has_changes(),
+                        }),
+                    },
+                    Err(_) => self
+                }
+            }
+        };
+
+        response
     }
 
     /// Set the ToDo as completed
@@ -231,33 +348,34 @@ impl ToDo {
                 title: Title::new(incomplete.title.to_string()).unwrap(),
                 owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
                 completed_on: DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap(),
-                has_changes: true
+                description: incomplete.description.clone(),
+                due_date: incomplete.due_date.clone(),
+                has_changes: true,
             }),
             ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
                 to_do_id: complete.to_do_id.clone(),
                 title: Title::new(complete.title.to_string()).unwrap(),
                 owner: OwnerId::new(complete.owner.to_string()).unwrap(),
+                description: complete.description.clone(),
+                due_date: complete.due_date.clone(),
                 completed_on: complete.completed_on,
-                has_changes: false
+                has_changes: false,
             }),
         }
     }
 
     /// Convert the ToDo into a ToDoItem Data Transfer Object
     pub(crate) fn into_dto(self) -> ToDoItem {
-        match &self {
-            ToDo::Incomplete(incomplete) => ToDoItem {
-                id: incomplete.to_do_id.to_string(),
-                is_complete: false,
-                title: incomplete.title.to_string(),
-                completed_on: String::from("")
+        ToDoItem {
+            id: self.get_id(),
+            is_complete: match &self {
+                ToDo::Incomplete(_) => false,
+                ToDo::Complete(_) => true
             },
-            ToDo::Complete(complete) => ToDoItem {
-                id: complete.to_do_id.to_string(),
-                is_complete: true,
-                title: complete.title.to_string(),
-                completed_on: complete.completed_on.to_rfc3339()
-            },
+            title: self.get_title(),
+            description: self.get_description(),
+            due_date: self.get_due_date(),
+            completed_on: self.get_completed_on(),
         }
     }
 
@@ -291,8 +409,10 @@ impl ToDo {
 pub struct IncompleteToDo {
     to_do_id: ToDoId,
     title: Title,
+    description: Option<String>,
+    due_date: Option<DateTime<FixedOffset>>,
     owner: OwnerId,
-    has_changes: bool
+    has_changes: bool,
 }
 
 /// Represents the structure of a complete ToDo item
@@ -300,9 +420,11 @@ pub struct IncompleteToDo {
 pub struct CompleteToDo {
     to_do_id: ToDoId,
     title: Title,
+    description: Option<String>,
+    due_date: Option<DateTime<FixedOffset>>,
     owner: OwnerId,
     completed_on: DateTime<FixedOffset>,
-    has_changes: bool
+    has_changes: bool,
 }
 
 #[derive(Clone)]
@@ -317,7 +439,7 @@ impl ToDoId {
 
     pub fn empty() -> Self {
         Self {
-            value: String::from("")
+            value: String::from(""),
         }
     }
 
@@ -362,7 +484,7 @@ impl Title {
 
     pub fn empty() -> Self {
         Self {
-            value: String::from("")
+            value: String::from(""),
         }
     }
 
@@ -393,7 +515,7 @@ impl OwnerId {
 
     pub fn empty() -> Self {
         Self {
-            value: String::from("")
+            value: String::from(""),
         }
     }
 
@@ -415,13 +537,12 @@ impl fmt::Display for IsComplete {
 }
 
 #[async_trait]
-pub trait ToDoRepo
-{
+pub trait ToDoRepo {
     async fn list(&self, user_id: &str) -> Result<Vec<ToDo>, RepositoryError>;
 
     async fn create(&self, to_do: &ToDo) -> Result<(), RepositoryError>;
 
-    async fn get (&self, user_id: &str, todo_id: &str) -> Result<ToDo, RepositoryError>;
+    async fn get(&self, user_id: &str, todo_id: &str) -> Result<ToDo, RepositoryError>;
 }
 
 /// Unit tests
@@ -440,6 +561,8 @@ mod tests {
         let to_do = ToDo::new(
             Title::new(String::from("my title")).unwrap(),
             OwnerId::new(String::from("jameseastham")).unwrap(),
+            Some(String::from("This is the description")),
+            None,
         );
 
         assert_eq!(to_do.is_err(), false);
@@ -453,7 +576,9 @@ mod tests {
             to_do_id: ToDoId::parse(String::from("hello")).unwrap(),
             title: Title::new(String::from("hello")).unwrap(),
             owner: OwnerId::new(String::from("hello")).unwrap(),
-            has_changes: false
+            description: Option::Some(String::from("This is the description")),
+            due_date: None,
+            has_changes: false,
         });
 
         let updated_todo = todo.update_title(String::from("my new title"));
@@ -472,8 +597,10 @@ mod tests {
             to_do_id: ToDoId::parse(String::from("hello")).unwrap(),
             title: Title::new(String::from("hello")).unwrap(),
             owner: OwnerId::new(String::from("hello")).unwrap(),
+            description: Option::Some(String::from("This is the description")),
+            due_date: None,
             completed_on: DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap(),
-            has_changes: false
+            has_changes: false,
         });
 
         let updated_todo = todo.update_title(String::from("my new title"));
@@ -492,7 +619,9 @@ mod tests {
             to_do_id: ToDoId::parse(String::from("hello")).unwrap(),
             title: Title::new(String::from("hello")).unwrap(),
             owner: OwnerId::new(String::from("hello")).unwrap(),
-            has_changes: false
+            description: Option::Some(String::from("This is the description")),
+            due_date: None,
+            has_changes: false,
         });
 
         let updated_todo = todo.set_completed();
@@ -512,8 +641,10 @@ mod tests {
             to_do_id: ToDoId::parse(String::from("hello")).unwrap(),
             title: Title::new(String::from("hello")).unwrap(),
             owner: OwnerId::new(String::from("hello")).unwrap(),
+            description: Option::Some(String::from("This is the description")),
+            due_date: None,
             completed_on: date,
-            has_changes: false
+            has_changes: false,
         });
 
         let updated_todo = todo.set_completed();
@@ -532,13 +663,13 @@ mod tests {
         let option_2: Option<i32> = Some(123456);
         let option_3: Option<i32> = None;
 
-        let valid_res = option_1.zip(option_2).map(|(opt1, opt2)| -> String {
-            format!("{opt1} - {opt2}")
-        });
+        let valid_res = option_1
+            .zip(option_2)
+            .map(|(opt1, opt2)| -> String { format!("{opt1} - {opt2}") });
 
-        let none_res = option_1.zip(option_3).map(|(opt1, opt2)| -> String {
-            format!("{opt1} - {opt2}")
-        });
+        let none_res = option_1
+            .zip(option_3)
+            .map(|(opt1, opt2)| -> String { format!("{opt1} - {opt2}") });
 
         assert_eq!(valid_res, Some("Hello - 123456".to_string()));
         assert_eq!(none_res, None);

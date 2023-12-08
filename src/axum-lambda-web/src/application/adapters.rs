@@ -1,10 +1,11 @@
-use crate::application::domain::{ToDoRepo, ToDo, Title, OwnerId, ToDoId};
+use std::collections::HashMap;
+use crate::application::domain::{OwnerId, Title, ToDo, ToDoId, ToDoRepo};
+use crate::application::error_types::RepositoryError;
 use async_trait::async_trait;
+use aws_sdk_dynamodb::error::ProvideErrorMetadata;
 use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_dynamodb::Client;
-use aws_sdk_dynamodb::error::ProvideErrorMetadata;
-use crate::application::error_types::RepositoryError;
-use chrono::DateTime;
+use chrono::{DateTime, FixedOffset};
 
 pub struct DynamoDbToDoRepo {
     client: Client,
@@ -35,23 +36,7 @@ impl ToDoRepo for DynamoDbToDoRepo {
 
                 for item in query_res.items() {
                     items.push(
-                        ToDo::parse(
-                            Title::new(item.get("title").unwrap().as_s().unwrap().clone()).unwrap(),
-                            OwnerId::new(item.get("ownerId").unwrap().as_s().unwrap().clone())
-                                .unwrap(),
-                            Some(item.get("status").unwrap().as_s().unwrap().clone()),
-                            Some(
-                                ToDoId::parse(item.get("id").unwrap().as_s().unwrap().clone())
-                                    .unwrap(),
-                            ),
-                            match item.get("completedOn") {
-                                None => None,
-                                Some(val) => {
-                                    Some(DateTime::parse_from_rfc3339(val.as_s().unwrap()).unwrap())
-                                }
-                            },
-                        )
-                            .unwrap(),
+                        parse_todo_from_item(&item)
                     )
                 }
 
@@ -80,8 +65,19 @@ impl ToDoRepo for DynamoDbToDoRepo {
             );
         }
 
-        let _ = dynamo_request_builder.send()
-            .await;
+        if !todo.get_description().is_empty() {
+            dynamo_request_builder = dynamo_request_builder
+                .item("description", AttributeValue::S(todo.get_description()));
+        }
+
+        if !todo.get_due_date().is_empty() {
+            dynamo_request_builder = dynamo_request_builder.item(
+                "dueDate",
+                AttributeValue::S(todo.get_due_date()),
+            );
+        }
+
+        let _ = dynamo_request_builder.send().await;
 
         Ok(())
     }
@@ -100,36 +96,49 @@ impl ToDoRepo for DynamoDbToDoRepo {
             Ok(item) => Ok({
                 let attributes = item.item().unwrap().clone();
 
-                ToDo::parse(
-                    Title::new(attributes.get("title").unwrap().as_s().unwrap().clone()).unwrap(),
-                    OwnerId::new(attributes.get("ownerId").unwrap().as_s().unwrap().clone())
-                        .unwrap(),
-                    Some(attributes.get("status").unwrap().as_s().unwrap().clone()),
-                    Some(
-                        ToDoId::parse(attributes.get("id").unwrap().as_s().unwrap().clone())
-                            .unwrap(),
-                    ),
-                    match attributes.get("completedOn") {
-                        None => None,
-                        Some(val) => {
-                            Some(DateTime::parse_from_rfc3339(val.as_s().unwrap()).unwrap())
-                        }
-                    },
-                ).unwrap()
+                parse_todo_from_item(&attributes)
             }),
-            Err(e) => {
-                Err(RepositoryError::new(e.into_service_error().message().unwrap().to_string()))
-            },
+            Err(e) => Err(RepositoryError::new(
+                e.into_service_error().message().unwrap().to_string(),
+            )),
         }
     }
 }
 
-fn generate_pk(user_id: &String) -> AttributeValue
-{
+fn parse_todo_from_item(item: &HashMap<String, AttributeValue>) -> ToDo {
+    ToDo::parse(
+        Title::new(item.get("title").unwrap().as_s().unwrap().clone()).unwrap(),
+        OwnerId::new(item.get("ownerId").unwrap().as_s().unwrap().clone())
+            .unwrap(),
+        Some(item.get("status").unwrap().as_s().unwrap().clone()),
+        Some(
+            ToDoId::parse(item.get("id").unwrap().as_s().unwrap().clone())
+                .unwrap(),
+        ),
+        match item.get("description") {
+            None => None,
+            Some(val) => Some(val.as_s().unwrap().clone()),
+        },
+        match item.get("dueDate") {
+            None => None,
+            Some(val) => {
+                Some(DateTime::parse_from_rfc3339(val.as_s().unwrap()).unwrap())
+            }
+        },
+        match item.get("completedOn") {
+            None => None,
+            Some(val) => {
+                Some(DateTime::parse_from_rfc3339(val.as_s().unwrap()).unwrap())
+            }
+        },
+    )
+        .unwrap()
+}
+
+fn generate_pk(user_id: &String) -> AttributeValue {
     AttributeValue::S(format!("USER#{0}", user_id.to_uppercase()))
 }
 
-fn generate_sk(todo_id: &String) -> AttributeValue
-{
+fn generate_sk(todo_id: &String) -> AttributeValue {
     AttributeValue::S(format!("TODO#{0}", todo_id.to_uppercase()))
 }
