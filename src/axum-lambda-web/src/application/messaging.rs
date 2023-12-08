@@ -1,6 +1,5 @@
 use crate::application::events::MessageType;
 use async_trait::async_trait;
-use aws_sdk_eventbridge::operation::put_events::{PutEventsError, PutEventsOutput};
 use aws_sdk_eventbridge::types::PutEventsRequestEntry;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};

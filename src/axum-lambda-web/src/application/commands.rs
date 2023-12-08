@@ -2,8 +2,6 @@ use crate::application::domain::ToDoRepo;
 use crate::application::error_types::ValidationError;
 use crate::application::events::{MessageType, ToDoCompleted, ToDoCreated, ToDoUpdated};
 use crate::application::messaging::MessagePublisher;
-use aws_sdk_dynamodb::primitives::DateTime;
-use chrono::ParseResult;
 use std::sync::Arc;
 
 use super::{

@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use aws_sdk_dynamodb::error::ProvideErrorMetadata;
 use aws_sdk_dynamodb::types::AttributeValue;
 use aws_sdk_dynamodb::Client;
-use chrono::{DateTime, FixedOffset};
+use chrono::{DateTime};
 
 pub struct DynamoDbToDoRepo {
     client: Client,
