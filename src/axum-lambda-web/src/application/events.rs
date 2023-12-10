@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub(crate) enum MessageType {
-    ToDoCreated(ToDoCreated),
-    ToDoUpdated(ToDoUpdated),
-    ToDoCompleted(ToDoCompleted),
+    Created(ToDoCreated),
+    Updated(ToDoUpdated),
+    Completed(ToDoCompleted),
 }
 
 #[derive(Deserialize, Serialize)]

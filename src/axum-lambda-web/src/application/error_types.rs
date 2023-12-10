@@ -11,11 +11,6 @@ impl RepositoryError {
             error_message: data_access_error,
         }
     }
-
-    pub fn to_string(&self) -> String {
-        // We don't want to disclose the secret
-        format!("Error persisting data {0}", self.error_message)
-    }
 }
 
 // Generation of an error is completely separate from how it is displayed.
@@ -42,10 +37,6 @@ impl ValidationError {
             error_message: message,
         }
     }
-
-    pub fn to_string(&self) -> String {
-        self.error_message.to_string()
-    }
 }
 
 // Generation of an error is completely separate from how it is displayed.
@@ -71,10 +62,6 @@ impl ServiceError {
         ServiceError {
             error_message: message,
         }
-    }
-
-    pub fn to_string(&self) -> String {
-        self.error_message.to_string()
     }
 }
 

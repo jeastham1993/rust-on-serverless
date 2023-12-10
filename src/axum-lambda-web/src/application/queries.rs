@@ -3,7 +3,7 @@ use crate::application::public_types::ToDoItem;
 use std::sync::Arc;
 
 pub async fn list_todos(
-    owner: &String,
+    owner: &str,
     client: &Arc<dyn ToDoRepo + Send + Sync>,
 ) -> Result<Vec<ToDoItem>, ()> {
     let query_res = client.list(owner).await;
@@ -23,7 +23,7 @@ pub async fn list_todos(
 }
 
 pub async fn get_todos(
-    owner: &String,
+    owner: &str,
     to_do_id: &str,
     client: &Arc<dyn ToDoRepo + Send + Sync>,
 ) -> Result<ToDoItem, ()> {

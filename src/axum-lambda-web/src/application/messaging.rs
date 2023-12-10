@@ -35,9 +35,9 @@ struct Metadata {
 impl Metadata {
     fn new(message_type: &MessageType) -> Self {
         let (event_type, event_version) = match &message_type {
-            MessageType::ToDoCreated(_) => ("ToDoCreated", "v1"),
-            MessageType::ToDoUpdated(_) => ("ToDoUpdated", "v1"),
-            MessageType::ToDoCompleted(_) => ("ToDoCompleted", "v1"),
+            MessageType::Created(_) => ("ToDoCreated", "v1"),
+            MessageType::Updated(_) => ("ToDoUpdated", "v1"),
+            MessageType::Completed(_) => ("ToDoCompleted", "v1"),
         };
 
         Self {

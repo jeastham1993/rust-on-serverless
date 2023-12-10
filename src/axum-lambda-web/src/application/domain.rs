@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
 use uuid::Uuid;
+use crate::application::helpers::check_not_empty_and_length_less_than;
 
 use super::{
     error_types::{RepositoryError, ValidationError},
@@ -45,12 +46,12 @@ impl ToDo {
             let title_err = title_res.err();
             let owner_err = owner_res.err();
 
-            if title_err.is_some() {
-                errors.push(title_err.unwrap());
+            if let Some(err) = title_err {
+                errors.push(err);
             }
 
-            if owner_err.is_some() {
-                errors.push(owner_err.unwrap());
+            if let Some(err) = owner_err {
+                errors.push(err);
             }
 
             return Err(errors);
@@ -66,17 +67,6 @@ impl ToDo {
             due_date,
             has_changes: false,
         }))
-    }
-
-    pub(crate) fn empty() -> ToDo {
-        ToDo::Incomplete(IncompleteToDo {
-            to_do_id: ToDoId::empty(),
-            title: Title::empty(),
-            owner: OwnerId::empty(),
-            description: None,
-            due_date: None,
-            has_changes: false,
-        })
     }
 
     pub(crate) fn has_changes(&self) -> bool {
@@ -105,12 +95,12 @@ impl ToDo {
             let title_err = title_res.err();
             let owner_err = owner_res.err();
 
-            if title_err.is_some() {
-                errors.push(title_err.unwrap());
+            if let Some(err) = title_err {
+                errors.push(err);
             }
 
-            if owner_err.is_some() {
-                errors.push(owner_err.unwrap());
+            if let Some(err) = owner_err {
+                errors.push(err);
             }
 
             return Err(errors);
@@ -381,19 +371,16 @@ impl ToDo {
     fn check_title(input: &Title) -> Result<(), ValidationError> {
         tracing::info!("Checking title: '{}'", input.to_string());
 
-        if input.to_string().len() == 0 || input.to_string().len() > 50 {
-            tracing::info!("Title is invalid");
+        let valid = check_not_empty_and_length_less_than(input.to_string(), 50);
 
-            return Err(ValidationError::new(
-                "Must be between 1 and 50 chars".to_string(),
-            ));
+        match valid {
+            Ok(_) => Ok(()),
+            Err(err) => Err(err)
         }
-
-        Ok(())
     }
 
     fn check_owner_id(input: &OwnerId) -> Result<(), ValidationError> {
-        if input.to_string().len() == 0 {
+        if input.to_string().is_empty() {
             return Err(ValidationError::new(
                 "Owner Id must have a length".to_string(),
             ));
@@ -436,24 +423,15 @@ impl ToDoId {
         ToDoId::parse(Uuid::new_v4().to_string().as_str()).unwrap()
     }
 
-    pub fn empty() -> Self {
-        Self {
-            value: String::from(""),
-        }
-    }
-
     pub fn parse(existing_id: &str) -> Result<ToDoId, ValidationError> {
-        if existing_id.to_string().len() == 0 || existing_id.to_string().len() > 50 {
-            tracing::info!("Title is invalid");
+        let valid = check_not_empty_and_length_less_than(existing_id, 50);
 
-            return Err(ValidationError::new(
-                "Must be between 1 and 50 chars".to_string(),
-            ));
+        match valid {
+            Ok(_) => Ok(ToDoId {
+                value: existing_id.to_string(),
+            }),
+            Err(err) => Err(err)
         }
-
-        Ok(ToDoId {
-            value: existing_id.to_string(),
-        })
     }
 
     pub fn to_string(&self) -> &str {
@@ -468,22 +446,13 @@ pub(crate) struct Title {
 
 impl Title {
     pub fn new(title: &str) -> Result<Title, ValidationError> {
-        if title.to_string().len() == 0 || title.to_string().len() > 50 {
-            tracing::info!("Title is invalid");
+        let valid = check_not_empty_and_length_less_than(title, 50);
 
-            return Err(ValidationError::new(
-                "Must be between 1 and 50 chars".to_string(),
-            ));
-        }
-
-        Ok(Title {
-            value: title.to_string(),
-        })
-    }
-
-    pub fn empty() -> Self {
-        Self {
-            value: String::from(""),
+        match valid {
+            Ok(_) => Ok(Title {
+                value: title.to_string(),
+            }),
+            Err(e) => Err(e)
         }
     }
 
@@ -499,22 +468,13 @@ pub(crate) struct OwnerId {
 
 impl OwnerId {
     pub fn new(owner_id: &str) -> Result<OwnerId, ValidationError> {
-        if owner_id.to_string().len() == 0 {
-            tracing::info!("Title is invalid");
+        let valid = check_not_empty_and_length_less_than(owner_id, 50);
 
-            return Err(ValidationError::new(
-                "Must be between 1 and 50 chars".to_string(),
-            ));
-        }
-
-        Ok(OwnerId {
-            value: owner_id.to_string(),
-        })
-    }
-
-    pub fn empty() -> Self {
-        Self {
-            value: String::from(""),
+        match valid {
+            Ok(_) => Ok(OwnerId {
+                value: owner_id.to_string(),
+            }),
+            Err(e) => Err(e)
         }
     }
 
@@ -525,8 +485,8 @@ impl OwnerId {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) enum IsComplete {
-    INCOMPLETE,
-    COMPLETE,
+    Incomplete,
+    Complete,
 }
 
 impl fmt::Display for IsComplete {

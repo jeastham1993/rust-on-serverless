@@ -20,9 +20,7 @@ pub async fn create_to_do(
     let parsed_ownerid = OwnerId::new(owner.as_str());
 
     if parsed_title.is_err() || parsed_ownerid.is_err() {
-        let mut errors = Vec::new();
-        errors.push(parsed_title.err());
-        errors.push(parsed_ownerid.err());
+        let errors = vec![parsed_title.err(), parsed_ownerid.err()];
 
         return Err(combine_errors(errors));
     }
@@ -53,7 +51,7 @@ pub async fn create_to_do(
             match db_res {
                 Ok(_) => {
                     let _ = message_publisher
-                        .publish(MessageType::ToDoCreated(ToDoCreated::new(
+                        .publish(MessageType::Created(ToDoCreated::new(
                             val.get_id(),
                             val.get_owner(),
                         )))
@@ -68,7 +66,7 @@ pub async fn create_to_do(
             let mut error_string = String::from("");
 
             for err in e {
-                error_string = format!("{} {}", error_string, err.to_string());
+                error_string = format!("{} {}", error_string, err);
             }
 
             Err(ValidationError::new(error_string))
@@ -108,7 +106,7 @@ pub async fn update_todo(
                     let _ = match update_command.set_as_complete {
                         true => {
                             message_publisher
-                                .publish(MessageType::ToDoCompleted(ToDoCompleted::new(
+                                .publish(MessageType::Completed(ToDoCompleted::new(
                                     res.get_id(),
                                     res.get_owner(),
                                 )))
@@ -116,7 +114,7 @@ pub async fn update_todo(
                         }
                         false => {
                             message_publisher
-                                .publish(MessageType::ToDoUpdated(ToDoUpdated::new(
+                                .publish(MessageType::Updated(ToDoUpdated::new(
                                     res.get_id(),
                                     res.get_owner(),
                                 )))

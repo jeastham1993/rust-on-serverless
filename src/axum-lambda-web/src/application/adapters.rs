@@ -26,7 +26,7 @@ impl ToDoRepo for DynamoDbToDoRepo {
             .query()
             .table_name(&self.table_name)
             .key_condition_expression("PK = :hashKey")
-            .expression_attribute_values(":hashKey", generate_pk(&user_id.to_string()))
+            .expression_attribute_values(":hashKey", generate_pk(user_id))
             .send()
             .await;
 
@@ -51,8 +51,8 @@ impl ToDoRepo for DynamoDbToDoRepo {
             .client
             .put_item()
             .table_name(&self.table_name)
-            .item("PK", generate_pk(&todo.get_owner().to_string()))
-            .item("SK", generate_sk(&todo.get_id().to_string()))
+            .item("PK", generate_pk(todo.get_owner()))
+            .item("SK", generate_sk(todo.get_id()))
             .item("id", AttributeValue::S(todo.get_id().into()))
             .item("title", AttributeValue::S(todo.get_title().into()))
             .item("status", AttributeValue::S(todo.get_status()))
@@ -87,8 +87,8 @@ impl ToDoRepo for DynamoDbToDoRepo {
             .client
             .get_item()
             .table_name(&self.table_name)
-            .key("PK", generate_pk(&user_id.to_string()))
-            .key("SK", generate_sk(&todo_id.to_string()))
+            .key("PK", generate_pk(user_id))
+            .key("SK", generate_sk(todo_id))
             .send()
             .await;
 
@@ -122,10 +122,10 @@ fn parse_todo_from_item(item: &HashMap<String, AttributeValue>) -> ToDo {
         .unwrap()
 }
 
-fn generate_pk(user_id: &String) -> AttributeValue {
+fn generate_pk(user_id: &str) -> AttributeValue {
     AttributeValue::S(format!("USER#{0}", user_id.to_uppercase()))
 }
 
-fn generate_sk(todo_id: &String) -> AttributeValue {
+fn generate_sk(todo_id: &str) -> AttributeValue {
     AttributeValue::S(format!("TODO#{0}", todo_id.to_uppercase()))
 }
