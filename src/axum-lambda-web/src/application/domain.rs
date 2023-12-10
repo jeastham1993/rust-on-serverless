@@ -254,7 +254,7 @@ impl ToDo {
                 title: new_title_value.unwrap(),
                 owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
                 description: incomplete.description.clone(),
-                due_date: incomplete.due_date.clone(),
+                due_date: incomplete.due_date,
                 has_changes: true,
             }),
             ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
@@ -262,7 +262,7 @@ impl ToDo {
                 title: Title::new(complete.title.to_string()).unwrap(),
                 owner: OwnerId::new(complete.owner.to_string()).unwrap(),
                 description: complete.description.clone(),
-                due_date: complete.due_date.clone(),
+                due_date: complete.due_date,
                 completed_on: complete.completed_on,
                 has_changes: self.has_changes(),
             }),
@@ -284,7 +284,7 @@ impl ToDo {
                         title: incomplete.title.clone(),
                         owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
                         description: Some(desc),
-                        due_date: incomplete.due_date.clone(),
+                        due_date: incomplete.due_date,
                         has_changes: true,
                     }),
                     ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
@@ -292,7 +292,7 @@ impl ToDo {
                         title: Title::new(complete.title.to_string()).unwrap(),
                         owner: OwnerId::new(complete.owner.to_string()).unwrap(),
                         description: complete.description.clone(),
-                        due_date: complete.due_date.clone(),
+                        due_date: complete.due_date,
                         completed_on: complete.completed_on,
                         has_changes: self.has_changes(),
                     }),
@@ -326,7 +326,7 @@ impl ToDo {
                             title: Title::new(complete.title.to_string()).unwrap(),
                             owner: OwnerId::new(complete.owner.to_string()).unwrap(),
                             description: complete.description.clone(),
-                            due_date: complete.due_date.clone(),
+                            due_date: complete.due_date,
                             completed_on: complete.completed_on,
                             has_changes: self.has_changes(),
                         }),
@@ -348,7 +348,7 @@ impl ToDo {
                 owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
                 completed_on: DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap(),
                 description: incomplete.description.clone(),
-                due_date: incomplete.due_date.clone(),
+                due_date: incomplete.due_date,
                 has_changes: true,
             }),
             ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
@@ -356,7 +356,7 @@ impl ToDo {
                 title: Title::new(complete.title.to_string()).unwrap(),
                 owner: OwnerId::new(complete.owner.to_string()).unwrap(),
                 description: complete.description.clone(),
-                due_date: complete.due_date.clone(),
+                due_date: complete.due_date,
                 completed_on: complete.completed_on,
                 has_changes: false,
             }),
@@ -564,7 +564,7 @@ mod tests {
             None,
         );
 
-        assert_eq!(to_do.is_err(), false);
+        assert!(!to_do.is_err());
         assert_eq!(to_do.as_ref().unwrap().get_title(), "my title");
         assert_eq!(to_do.as_ref().unwrap().get_owner(), "jameseastham");
     }
@@ -584,7 +584,7 @@ mod tests {
 
         if let ToDo::Incomplete(todo) = updated_todo.unwrap() {
             assert_eq!(todo.title.to_string(), String::from("my new title"));
-            assert_eq!(todo.has_changes, true)
+            assert!(todo.has_changes)
         } else {
             panic!("ToDo update method did not return the expected type")
         }
@@ -606,7 +606,7 @@ mod tests {
 
         if let ToDo::Complete(completed) = updated_todo.unwrap() {
             assert_eq!(completed.title.to_string(), String::from("hello"));
-            assert_eq!(completed.has_changes, false)
+            assert!(!completed.has_changes)
         } else {
             panic!("ToDo update method did not return the expected type")
         }
@@ -682,20 +682,20 @@ mod tests {
     fn parse_empty_id_should_return_validate_error() {
         let to_do_id = ToDoId::parse("");
 
-        assert_eq!(to_do_id.is_err(), true);
+        assert!(to_do_id.is_err());
     }
 
     #[test]
     fn empty_title_should_return_validate_error() {
         let to_do = Title::new("");
 
-        assert_eq!(to_do.is_err(), true);
+        assert!(to_do.is_err());
     }
 
     #[test]
     fn empty_owner_should_return_validate_error() {
         let owner = OwnerId::new("");
 
-        assert_eq!(owner.is_err(), true);
+        assert!(owner.is_err());
     }
 }

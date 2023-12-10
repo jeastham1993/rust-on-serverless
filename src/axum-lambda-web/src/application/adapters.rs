@@ -36,7 +36,7 @@ impl ToDoRepo for DynamoDbToDoRepo {
 
                 for item in query_res.items() {
                     items.push(
-                        parse_todo_from_item(&item)
+                        parse_todo_from_item(item)
                     )
                 }
 
@@ -55,13 +55,13 @@ impl ToDoRepo for DynamoDbToDoRepo {
             .item("SK", generate_sk(&todo.get_id().to_string()))
             .item("id", AttributeValue::S(todo.get_id().into()))
             .item("title", AttributeValue::S(todo.get_title().into()))
-            .item("status", AttributeValue::S(todo.get_status().into()))
+            .item("status", AttributeValue::S(todo.get_status()))
             .item("ownerId", AttributeValue::S(todo.get_owner().into()));
 
         if !todo.get_completed_on().is_empty() {
             dynamo_request_builder = dynamo_request_builder.item(
                 "completedOn",
-                AttributeValue::S(todo.get_completed_on().into()),
+                AttributeValue::S(todo.get_completed_on()),
             );
         }
 
@@ -115,22 +115,9 @@ fn parse_todo_from_item(item: &HashMap<String, AttributeValue>) -> ToDo {
             ToDoId::parse(item.get("id").unwrap().as_s().unwrap())
                 .unwrap(),
         ),
-        match item.get("description") {
-            None => None,
-            Some(val) => Some(val.as_s().unwrap().clone()),
-        },
-        match item.get("dueDate") {
-            None => None,
-            Some(val) => {
-                Some(DateTime::parse_from_rfc3339(val.as_s().unwrap()).unwrap())
-            }
-        },
-        match item.get("completedOn") {
-            None => None,
-            Some(val) => {
-                Some(DateTime::parse_from_rfc3339(val.as_s().unwrap()).unwrap())
-            }
-        },
+        item.get("description").map(|val| val.as_s().unwrap().clone()),
+        item.get("dueDate").map(|val| DateTime::parse_from_rfc3339(val.as_s().unwrap()).unwrap()),
+        item.get("completedOn").map(|val| DateTime::parse_from_rfc3339(val.as_s().unwrap()).unwrap()),
     )
         .unwrap()
 }

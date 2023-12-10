@@ -59,7 +59,7 @@ mod tests {
 
     #[async_trait]
     impl ToDoRepo for MockRepository {
-        async fn list(&self, user_id: &str) -> Result<Vec<ToDo>, RepositoryError> {
+        async fn list(&self, _user_id: &str) -> Result<Vec<ToDo>, RepositoryError> {
             if self.should_fail {
                 return Err(RepositoryError::new("Forced failure!".to_string()));
             }
@@ -87,7 +87,7 @@ mod tests {
             Ok(todos)
         }
 
-        async fn create(&self, to_do: &ToDo) -> Result<(), RepositoryError> {
+        async fn create(&self, _to_do: &ToDo) -> Result<(), RepositoryError> {
             if self.should_fail {
                 return Err(RepositoryError::new("Forced failure!".to_string()));
             } else {
@@ -95,7 +95,7 @@ mod tests {
             }
         }
 
-        async fn get(&self, user_id: &str, todo_id: &str) -> Result<ToDo, RepositoryError> {
+        async fn get(&self, _user_id: &str, _todo_id: &str) -> Result<ToDo, RepositoryError> {
             if self.should_fail {
                 return Err(RepositoryError::new("Forced failure!".to_string()));
             }
@@ -130,7 +130,7 @@ mod tests {
 
         let to_dos = list_todos(&String::from("owner"), &shared_state.todo_repo).await;
 
-        assert_eq!(to_dos.is_err(), false);
+        assert!(!to_dos.is_err());
         assert_eq!(to_dos.unwrap().len(), 1);
     }
 
@@ -146,7 +146,7 @@ mod tests {
 
         let to_dos = get_todos(&String::from("owner"), "the id", &shared_state.todo_repo).await;
 
-        assert_eq!(to_dos.is_err(), false);
+        assert!(!to_dos.is_err());
         assert_eq!(to_dos.unwrap().title, "title");
     }
 
@@ -162,6 +162,6 @@ mod tests {
 
         let to_dos = list_todos(&String::from("owner"), &shared_state.todo_repo).await;
 
-        assert_eq!(to_dos.is_err(), true);
+        assert!(to_dos.is_err());
     }
 }

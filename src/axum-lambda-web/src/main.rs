@@ -6,7 +6,7 @@ use crate::application::adapters::DynamoDbToDoRepo;
 use crate::application::commands::{create_to_do, update_todo};
 use crate::application::domain::AppState;
 use crate::application::messaging::{
-    EventBridgeEventPublisher, InMemoryMessagePublisher, MessagePublisher,
+    EventBridgeEventPublisher, InMemoryMessagePublisher,
 };
 use crate::application::public_types::{CreateToDoCommand, ToDoItem, UpdateToDoCommand};
 use crate::application::queries::{get_todos, list_todos};
@@ -360,12 +360,12 @@ mod tests {
 
         let test_text = "My todo";
 
-        let response = driver.create(&test_text, "", "").await;
+        let response = driver.create(test_text, "", "").await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         assert!(!body.is_empty());
-        let created_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*body.to_vec()).unwrap();
+        let created_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&body.to_vec()).unwrap();
 
         assert_eq!(created_todo.data.title, test_text);
 
@@ -386,15 +386,15 @@ mod tests {
 
         let test_text = "My todo";
 
-        let response = driver.create(&test_text, "", "").await;
+        let response = driver.create(test_text, "", "").await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         assert!(!body.is_empty());
 
-        let created_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*body.to_vec()).unwrap();
+        let created_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&body.to_vec()).unwrap();
 
-        let update_response = driver
+        let _update_response = driver
             .update("Updated todo", &created_todo.data.id, &true, "updated description", "2023-08-12T00:00:00+00:00")
             .await;
 
@@ -404,7 +404,7 @@ mod tests {
         let get_body = get_response.into_body().collect().await.unwrap().to_bytes();
         assert!(!get_body.is_empty());
 
-        let get_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*get_body.to_vec()).unwrap();
+        let get_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&get_body.to_vec()).unwrap();
 
         assert_eq!(get_todo.data.title, "My todo");
         assert_eq!(get_todo.data.description, "");
@@ -421,13 +421,13 @@ mod tests {
 
         let test_text = "My todo";
 
-        let response = driver.create(&test_text, "", "").await;
+        let response = driver.create(test_text, "", "").await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         assert!(!body.is_empty());
 
-        let created_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*body.to_vec()).unwrap();
+        let created_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&body.to_vec()).unwrap();
 
         let update_response = driver
             .update("Updated todo", &created_todo.data.id, &false, "updated description", "2023-08-12T00:00:00+00:00")
@@ -440,7 +440,7 @@ mod tests {
         let get_body = get_response.into_body().collect().await.unwrap().to_bytes();
         assert!(!get_body.is_empty());
 
-        let get_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*get_body.to_vec()).unwrap();
+        let get_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&get_body.to_vec()).unwrap();
 
         assert_eq!(get_todo.data.title, "Updated todo");
         assert_eq!(get_todo.data.description, "updated description");

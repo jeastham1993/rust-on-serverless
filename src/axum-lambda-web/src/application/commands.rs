@@ -92,7 +92,7 @@ pub async fn update_todo(
                 false => todo,
             };
 
-            let mut updated_todo = updated_status.update_title(update_command.title.as_str());
+            let updated_todo = updated_status.update_title(update_command.title.as_str());
 
             match updated_todo {
                 Ok(mut res) => {
@@ -186,7 +186,7 @@ mod tests {
 
     #[async_trait]
     impl ToDoRepo for MockRepository {
-        async fn list(&self, user_id: &str) -> Result<Vec<ToDo>, RepositoryError> {
+        async fn list(&self, _user_id: &str) -> Result<Vec<ToDo>, RepositoryError> {
             if self.should_fail {
                 return Err(RepositoryError::new("Forced failure!".to_string()));
             }
@@ -214,7 +214,7 @@ mod tests {
             Ok(todos)
         }
 
-        async fn create(&self, to_do: &ToDo) -> Result<(), RepositoryError> {
+        async fn create(&self, _to_do: &ToDo) -> Result<(), RepositoryError> {
             if self.should_fail {
                 return Err(RepositoryError::new("Forced failure!".to_string()));
             } else {
@@ -222,7 +222,7 @@ mod tests {
             }
         }
 
-        async fn get(&self, user_id: &str, todo_id: &str) -> Result<ToDo, RepositoryError> {
+        async fn get(&self, _user_id: &str, _todo_id: &str) -> Result<ToDo, RepositoryError> {
             if self.should_fail {
                 return Err(RepositoryError::new("Forced failure!".to_string()));
             }
@@ -269,7 +269,7 @@ mod tests {
         )
         .await;
 
-        assert_eq!(to_dos.is_err(), false);
+        assert!(!to_dos.is_err());
         assert_eq!(to_dos.unwrap().title, "newtitle");
     }
 
@@ -297,7 +297,7 @@ mod tests {
         )
             .await;
 
-        assert_eq!(to_dos.is_err(), false);
+        assert!(!to_dos.is_err());
         assert_eq!(to_dos.unwrap().description, "mydescription");
     }
 
@@ -325,7 +325,7 @@ mod tests {
         )
             .await;
 
-        assert_eq!(to_dos.is_err(), false);
+        assert!(!to_dos.is_err());
         assert_eq!(to_dos.unwrap().due_date, "2023-08-13T00:00:00+00:00");
     }
 
@@ -353,7 +353,7 @@ mod tests {
         )
         .await;
 
-        assert_eq!(to_dos.is_err(), false);
+        assert!(!to_dos.is_err());
         assert_eq!(to_dos.unwrap().title, "title");
     }
 
@@ -381,7 +381,7 @@ mod tests {
         )
         .await;
 
-        assert_eq!(to_dos.is_err(), false);
+        assert!(!to_dos.is_err());
         assert_eq!(to_dos.unwrap().title, "newtitle");
     }
 
@@ -409,8 +409,8 @@ mod tests {
         )
         .await;
 
-        assert_eq!(to_dos.is_err(), false);
+        assert!(!to_dos.is_err());
         assert_eq!(to_dos.as_ref().unwrap().title, "title");
-        assert_eq!(to_dos.as_ref().unwrap().is_complete, true);
+        assert!(to_dos.as_ref().unwrap().is_complete);
     }
 }
