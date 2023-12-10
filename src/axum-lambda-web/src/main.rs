@@ -35,6 +35,7 @@ fn app(app_state: Arc<AppState>) -> Router {
             get(get_todo_endpoint).put(update_todo_endpoint),
         )
         .with_state(app_state)
+        .fallback(handler_404)
 }
 
 #[tokio::main]
@@ -95,8 +96,18 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn health() -> Json<Value> {
-    Json(json!({ "msg": "Healthy" }))
+async fn health() -> impl IntoResponse {
+    (StatusCode::OK, Json(ApiResponse {
+        data: "",
+        message: "Healthy".to_string(),
+    }))
+}
+
+async fn handler_404() -> impl IntoResponse {
+    (StatusCode::NOT_FOUND, Json(ApiResponse {
+        data: "",
+        message: "Please set the 'user-id".to_string(),
+    }))
 }
 
 async fn list_todo_endpoint(

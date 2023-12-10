@@ -28,6 +28,7 @@ time = "0.3.30"
 config = "0.13.4"
 async-trait = "0.1.74"
 chrono = { version = "0.4.31", features = [] }
+log = "0.4.20"
 
 [dev-dependencies]
 aws-smithy-http = "0.60.0"
