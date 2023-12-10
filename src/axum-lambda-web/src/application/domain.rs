@@ -381,7 +381,7 @@ impl ToDo {
     fn check_title(input: &Title) -> Result<(), ValidationError> {
         tracing::info!("Checking title: '{}'", input.to_string());
 
-        if input.to_string().len() <= 0 || input.to_string().len() > 50 {
+        if input.to_string().len() == 0 || input.to_string().len() > 50 {
             tracing::info!("Title is invalid");
 
             return Err(ValidationError::new(
@@ -393,7 +393,7 @@ impl ToDo {
     }
 
     fn check_owner_id(input: &OwnerId) -> Result<(), ValidationError> {
-        if input.to_string().len() <= 0 {
+        if input.to_string().len() == 0 {
             return Err(ValidationError::new(
                 "Owner Id must have a length".to_string(),
             ));
@@ -443,7 +443,7 @@ impl ToDoId {
     }
 
     pub fn parse(existing_id: &str) -> Result<ToDoId, ValidationError> {
-        if existing_id.to_string().len() <= 0 || existing_id.to_string().len() > 50 {
+        if existing_id.to_string().len() == 0 || existing_id.to_string().len() > 50 {
             tracing::info!("Title is invalid");
 
             return Err(ValidationError::new(
@@ -468,7 +468,7 @@ pub(crate) struct Title {
 
 impl Title {
     pub fn new(title: &str) -> Result<Title, ValidationError> {
-        if title.to_string().len() <= 0 || title.to_string().len() > 50 {
+        if title.to_string().len() == 0 || title.to_string().len() > 50 {
             tracing::info!("Title is invalid");
 
             return Err(ValidationError::new(
@@ -499,7 +499,7 @@ pub(crate) struct OwnerId {
 
 impl OwnerId {
     pub fn new(owner_id: &str) -> Result<OwnerId, ValidationError> {
-        if owner_id.to_string().len() <= 0 {
+        if owner_id.to_string().len() == 0 {
             tracing::info!("Title is invalid");
 
             return Err(ValidationError::new(
