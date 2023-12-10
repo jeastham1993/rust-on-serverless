@@ -16,8 +16,8 @@ pub async fn create_to_do(
     client: &Arc<dyn ToDoRepo + Send + Sync>,
     message_publisher: &Arc<dyn MessagePublisher + Send + Sync>,
 ) -> Result<ToDoItem, ValidationError> {
-    let parsed_title = Title::new(input.title);
-    let parsed_ownerid = OwnerId::new(owner);
+    let parsed_title = Title::new(input.title.as_str());
+    let parsed_ownerid = OwnerId::new(owner.as_str());
 
     if parsed_title.is_err() || parsed_ownerid.is_err() {
         let mut errors = Vec::new();
@@ -59,7 +59,7 @@ pub async fn create_to_do(
                         )))
                         .await;
 
-                    Ok(val.into_dto())
+                    Ok(val.as_dto())
                 }
                 Err(_) => Err(ValidationError::new("Failure creating ToDo".to_string())),
             }
@@ -92,15 +92,15 @@ pub async fn update_todo(
                 false => todo,
             };
 
-            let mut updated_todo = updated_status.update_title(update_command.title);
+            let mut updated_todo = updated_status.update_title(update_command.title.as_str());
 
             match updated_todo {
                 Ok(mut res) => {
                     res = res.update_description(update_command.description)
                         .update_due_date(update_command.due_date);
 
-                    if (!res.has_changes()) {
-                        return Ok(res.into_dto());
+                    if !res.has_changes() {
+                        return Ok(res.as_dto());
                     }
 
                     let database_result = client.create(&res).await;
@@ -125,7 +125,7 @@ pub async fn update_todo(
                     };
 
                     match database_result {
-                        Ok(_) => Ok(res.into_dto()),
+                        Ok(_) => Ok(res.as_dto()),
                         Err(e) => {
                             tracing::error!("{}", e.to_string());
 
@@ -195,10 +195,10 @@ mod tests {
 
             todos.push(
                 ToDo::parse(
-                    Title::new("title".to_string()).unwrap(),
-                    OwnerId::new("owner".to_string()).unwrap(),
+                    Title::new("title").unwrap(),
+                    OwnerId::new("owner").unwrap(),
                     Some(self.to_do_status_to_return.to_string()),
-                    Some(ToDoId::parse("id".to_string()).unwrap()),
+                    Some(ToDoId::parse("id").unwrap()),
                     Some(String::from("Description")),
                     Some(DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap()),
                     match self.to_do_status_to_return.as_str() {
@@ -228,10 +228,10 @@ mod tests {
             }
 
             Ok(ToDo::parse(
-                Title::new("title".to_string()).unwrap(),
-                OwnerId::new("owner".to_string()).unwrap(),
+                Title::new("title").unwrap(),
+                OwnerId::new("owner").unwrap(),
                 Some(self.to_do_status_to_return.to_string()),
-                Some(ToDoId::parse("id".to_string()).unwrap()),
+                Some(ToDoId::parse("id").unwrap()),
                 Some(String::from("Description")),
                 Some(DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap()),
                 match self.to_do_status_to_return.as_str() {

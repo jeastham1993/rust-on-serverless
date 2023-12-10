@@ -173,7 +173,7 @@ impl ToDo {
     }
 
     /// GET the title of the ToDo
-    pub(crate) fn get_title(&self) -> String {
+    pub(crate) fn get_title(&self) -> &str {
         match &self {
             ToDo::Incomplete(incomplete) => incomplete.title.to_string(),
             ToDo::Complete(complete) => complete.title.to_string(),
@@ -181,15 +181,15 @@ impl ToDo {
     }
 
     /// GET the title of the ToDo
-    pub(crate) fn get_description(&self) -> String {
+    pub(crate) fn get_description(&self) -> &str {
         let desc = match &self {
             ToDo::Incomplete(incomplete) => &incomplete.description,
             ToDo::Complete(complete) => &complete.description,
         };
 
         match desc {
-            None => String::from(""),
-            Some(val) => val.clone()
+            None => "",
+            Some(val) => val
         }
     }
 
@@ -202,20 +202,20 @@ impl ToDo {
 
         match due_date {
             None => String::from(""),
-            Some(date) => date.to_rfc3339()
+            Some(date) => date.to_rfc3339().to_string()
         }
     }
 
     /// GET the date the ToDo was completed. Returns an empty string if incomplete.
     pub(crate) fn get_completed_on(&self) -> String {
         match &self {
-            ToDo::Incomplete(_) => "".to_string(),
-            ToDo::Complete(complete) => complete.completed_on.to_rfc3339(),
+            ToDo::Incomplete(_) => String::from(""),
+            ToDo::Complete(complete) => complete.completed_on.to_rfc3339().to_string(),
         }
     }
 
     /// GET the owner of the ToDo
-    pub(crate) fn get_owner(&self) -> String {
+    pub(crate) fn get_owner(&self) -> &str {
         match &self {
             ToDo::Incomplete(incomplete) => incomplete.owner.to_string(),
             ToDo::Complete(complete) => complete.owner.to_string(),
@@ -223,7 +223,7 @@ impl ToDo {
     }
 
     /// GET the ID of the ToDo
-    pub(crate) fn get_id(&self) -> String {
+    pub(crate) fn get_id(&self) -> &str {
         match &self {
             ToDo::Incomplete(incomplete) => incomplete.to_do_id.to_string(),
             ToDo::Complete(complete) => complete.to_do_id.to_string(),
@@ -241,7 +241,7 @@ impl ToDo {
     /// Update the title of the existing ToDo.
     /// If the ToDo is already completed then the title cannot be updated.
     /// Returns a new ToDo
-    pub(crate) fn update_title(self, new_title: String) -> Result<ToDo, ValidationError> {
+    pub(crate) fn update_title(self, new_title: &str) -> Result<ToDo, ValidationError> {
         let new_title_value = Title::new(new_title);
 
         if new_title_value.is_err() {
@@ -364,15 +364,15 @@ impl ToDo {
     }
 
     /// Convert the ToDo into a ToDoItem Data Transfer Object
-    pub(crate) fn into_dto(self) -> ToDoItem {
+    pub(crate) fn as_dto(&self) -> ToDoItem {
         ToDoItem {
-            id: self.get_id(),
+            id: self.get_id().to_string(),
             is_complete: match &self {
                 ToDo::Incomplete(_) => false,
                 ToDo::Complete(_) => true
             },
-            title: self.get_title(),
-            description: self.get_description(),
+            title: self.get_title().to_string(),
+            description: self.get_description().to_string(),
             due_date: self.get_due_date(),
             completed_on: self.get_completed_on(),
         }
@@ -433,7 +433,7 @@ pub(crate) struct ToDoId {
 
 impl ToDoId {
     pub fn new() -> ToDoId {
-        ToDoId::parse(Uuid::new_v4().to_string()).unwrap()
+        ToDoId::parse(Uuid::new_v4().to_string().as_str()).unwrap()
     }
 
     pub fn empty() -> Self {
@@ -442,7 +442,7 @@ impl ToDoId {
         }
     }
 
-    pub fn parse(existing_id: String) -> Result<ToDoId, ValidationError> {
+    pub fn parse(existing_id: &str) -> Result<ToDoId, ValidationError> {
         if existing_id.to_string().len() <= 0 || existing_id.to_string().len() > 50 {
             tracing::info!("Title is invalid");
 
@@ -456,8 +456,8 @@ impl ToDoId {
         })
     }
 
-    pub fn to_string(&self) -> String {
-        self.value.clone()
+    pub fn to_string(&self) -> &str {
+        self.value.as_str()
     }
 }
 
@@ -467,7 +467,7 @@ pub(crate) struct Title {
 }
 
 impl Title {
-    pub fn new(title: String) -> Result<Title, ValidationError> {
+    pub fn new(title: &str) -> Result<Title, ValidationError> {
         if title.to_string().len() <= 0 || title.to_string().len() > 50 {
             tracing::info!("Title is invalid");
 
@@ -487,8 +487,8 @@ impl Title {
         }
     }
 
-    pub fn to_string(&self) -> String {
-        self.value.clone()
+    pub fn to_string(&self) -> &str {
+        self.value.as_str()
     }
 }
 
@@ -498,7 +498,7 @@ pub(crate) struct OwnerId {
 }
 
 impl OwnerId {
-    pub fn new(owner_id: String) -> Result<OwnerId, ValidationError> {
+    pub fn new(owner_id: &str) -> Result<OwnerId, ValidationError> {
         if owner_id.to_string().len() <= 0 {
             tracing::info!("Title is invalid");
 
@@ -518,8 +518,8 @@ impl OwnerId {
         }
     }
 
-    pub fn to_string(&self) -> String {
-        self.value.clone()
+    pub fn to_string(&self) -> &str {
+        self.value.as_str()
     }
 }
 
@@ -558,8 +558,8 @@ mod tests {
     #[test]
     fn valid_data_should_return_validated_to_do() {
         let to_do = ToDo::new(
-            Title::new(String::from("my title")).unwrap(),
-            OwnerId::new(String::from("jameseastham")).unwrap(),
+            Title::new("my title").unwrap(),
+            OwnerId::new("jameseastham").unwrap(),
             Some(String::from("This is the description")),
             None,
         );
@@ -572,15 +572,15 @@ mod tests {
     #[test]
     fn update_title_for_incomplete_todo_should_change() {
         let todo = ToDo::Incomplete(super::IncompleteToDo {
-            to_do_id: ToDoId::parse(String::from("hello")).unwrap(),
-            title: Title::new(String::from("hello")).unwrap(),
-            owner: OwnerId::new(String::from("hello")).unwrap(),
-            description: Option::Some(String::from("This is the description")),
+            to_do_id: ToDoId::parse("hello").unwrap(),
+            title: Title::new("hello").unwrap(),
+            owner: OwnerId::new("hello").unwrap(),
+            description: Some(String::from("This is the description")),
             due_date: None,
             has_changes: false,
         });
 
-        let updated_todo = todo.update_title(String::from("my new title"));
+        let updated_todo = todo.update_title("my new title");
 
         if let ToDo::Incomplete(todo) = updated_todo.unwrap() {
             assert_eq!(todo.title.to_string(), String::from("my new title"));
@@ -593,16 +593,16 @@ mod tests {
     #[test]
     fn update_title_for_completed_todo_should_not_change() {
         let todo = ToDo::Complete(super::CompleteToDo {
-            to_do_id: ToDoId::parse(String::from("hello")).unwrap(),
-            title: Title::new(String::from("hello")).unwrap(),
-            owner: OwnerId::new(String::from("hello")).unwrap(),
-            description: Option::Some(String::from("This is the description")),
+            to_do_id: ToDoId::parse("hello").unwrap(),
+            title: Title::new("hello").unwrap(),
+            owner: OwnerId::new("hello").unwrap(),
+            description: Some(String::from("This is the description")),
             due_date: None,
             completed_on: DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap(),
             has_changes: false,
         });
 
-        let updated_todo = todo.update_title(String::from("my new title"));
+        let updated_todo = todo.update_title("my new title");
 
         if let ToDo::Complete(completed) = updated_todo.unwrap() {
             assert_eq!(completed.title.to_string(), String::from("hello"));
@@ -615,10 +615,10 @@ mod tests {
     #[test]
     fn update_status_for_incomplete_todo_should_change() {
         let todo = ToDo::Incomplete(super::IncompleteToDo {
-            to_do_id: ToDoId::parse(String::from("hello")).unwrap(),
-            title: Title::new(String::from("hello")).unwrap(),
-            owner: OwnerId::new(String::from("hello")).unwrap(),
-            description: Option::Some(String::from("This is the description")),
+            to_do_id: ToDoId::parse("hello").unwrap(),
+            title: Title::new("hello").unwrap(),
+            owner: OwnerId::new("hello").unwrap(),
+            description: Some(String::from("This is the description")),
             due_date: None,
             has_changes: false,
         });
@@ -637,10 +637,10 @@ mod tests {
         let date = DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap();
 
         let todo = ToDo::Complete(super::CompleteToDo {
-            to_do_id: ToDoId::parse(String::from("hello")).unwrap(),
-            title: Title::new(String::from("hello")).unwrap(),
-            owner: OwnerId::new(String::from("hello")).unwrap(),
-            description: Option::Some(String::from("This is the description")),
+            to_do_id: ToDoId::parse("hello").unwrap(),
+            title: Title::new("hello").unwrap(),
+            owner: OwnerId::new("hello").unwrap(),
+            description: Some(String::from("This is the description")),
             due_date: None,
             completed_on: date,
             has_changes: false,
@@ -680,21 +680,21 @@ mod tests {
 
     #[test]
     fn parse_empty_id_should_return_validate_error() {
-        let to_do_id = ToDoId::parse(String::from(""));
+        let to_do_id = ToDoId::parse("");
 
         assert_eq!(to_do_id.is_err(), true);
     }
 
     #[test]
     fn empty_title_should_return_validate_error() {
-        let to_do = Title::new(String::from(""));
+        let to_do = Title::new("");
 
         assert_eq!(to_do.is_err(), true);
     }
 
     #[test]
     fn empty_owner_should_return_validate_error() {
-        let owner = OwnerId::new(String::from(""));
+        let owner = OwnerId::new("");
 
         assert_eq!(owner.is_err(), true);
     }

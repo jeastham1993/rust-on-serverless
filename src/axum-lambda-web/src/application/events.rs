@@ -14,8 +14,8 @@ pub struct ToDoCreated {
 }
 
 impl ToDoCreated {
-    pub(crate) fn new(to_do_id: String, user_id: String) -> Self {
-        Self { to_do_id, user_id }
+    pub(crate) fn new(to_do_id: &str, user_id: &str) -> Self {
+        Self { to_do_id: to_do_id.to_string(), user_id: user_id.to_string() }
     }
 }
 
@@ -26,8 +26,8 @@ pub struct ToDoCompleted {
 }
 
 impl ToDoCompleted {
-    pub(crate) fn new(to_do_id: String, user_id: String) -> Self {
-        Self { to_do_id, user_id }
+    pub(crate) fn new(to_do_id: &str, user_id: &str) -> Self {
+        Self { to_do_id: to_do_id.to_string(), user_id: user_id.to_string() }
     }
 }
 
@@ -38,7 +38,7 @@ pub struct ToDoUpdated {
 }
 
 impl ToDoUpdated {
-    pub(crate) fn new(to_do_id: String, user_id: String) -> Self {
-        Self { to_do_id, user_id }
+    pub(crate) fn new(to_do_id: &str, user_id: &str) -> Self {
+        Self { to_do_id: to_do_id.to_string(), user_id: user_id.to_string() }
     }
 }

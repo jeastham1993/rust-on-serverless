@@ -13,7 +13,7 @@ pub async fn list_todos(
             let mut to_do_items: Vec<ToDoItem> = Vec::new();
 
             for todo in todos {
-                to_do_items.push(todo.into_dto());
+                to_do_items.push(todo.as_dto());
             }
 
             Ok(to_do_items)
@@ -30,7 +30,7 @@ pub async fn get_todos(
     let query_res = client.get(owner, to_do_id).await;
 
     match query_res {
-        Ok(todo) => Ok(todo.into_dto()),
+        Ok(todo) => Ok(todo.as_dto()),
         Err(_) => Err(()),
     }
 }
@@ -68,10 +68,10 @@ mod tests {
 
             todos.push(
                 ToDo::parse(
-                    Title::new("title".to_string()).unwrap(),
-                    OwnerId::new("owner".to_string()).unwrap(),
+                    Title::new("title").unwrap(),
+                    OwnerId::new("owner").unwrap(),
                     Some(self.to_do_status_to_return.to_string()),
-                    Some(ToDoId::parse("id".to_string()).unwrap()),
+                    Some(ToDoId::parse("id").unwrap()),
                     Some(String::from("Description")),
                     Some(DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap()),
                     match self.to_do_status_to_return.as_str() {
@@ -101,10 +101,10 @@ mod tests {
             }
 
             Ok(ToDo::parse(
-                Title::new("title".to_string()).unwrap(),
-                OwnerId::new("owner".to_string()).unwrap(),
+                Title::new("title").unwrap(),
+                OwnerId::new("owner").unwrap(),
                 Some(self.to_do_status_to_return.to_string()),
-                Some(ToDoId::parse("id".to_string()).unwrap()),
+                Some(ToDoId::parse("id").unwrap()),
                 Some(String::from("Description")),
                 Some(DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap()),
                 match self.to_do_status_to_return.as_str() {

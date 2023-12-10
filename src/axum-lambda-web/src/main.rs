@@ -145,14 +145,7 @@ async fn get_todo_endpoint(
         Err(_) => (
             StatusCode::BAD_REQUEST,
             Json(ApiResponse {
-                data: ToDoItem {
-                    id: String::from(""),
-                    title: String::from(""),
-                    is_complete: false,
-                    completed_on: String::from(""),
-                    description: String::from(""),
-                    due_date: String::from("")
-                },
+                data: ToDoItem::empty(),
                 message: "Please set the 'user-id".to_string(),
             }),
         ),
@@ -180,14 +173,7 @@ async fn post_todo_endpoint(
         Err(_) => (
             StatusCode::BAD_REQUEST,
             Json(ApiResponse {
-                data: ToDoItem {
-                    id: String::from(""),
-                    title: String::from(""),
-                    is_complete: false,
-                    completed_on: String::from(""),
-                    description: String::from(""),
-                    due_date: String::from("")
-                },
+                data: ToDoItem::empty(),
                 message: "Please set the 'user-id".to_string(),
             }),
         ),
@@ -222,14 +208,7 @@ async fn update_todo_endpoint(
         Err(_) => (
             StatusCode::BAD_REQUEST,
             Json(ApiResponse {
-                data: ToDoItem {
-                    id: String::from(""),
-                    title: String::from(""),
-                    is_complete: false,
-                    completed_on: String::from(""),
-                    description: String::from(""),
-                    due_date: String::from("")
-                },
+                data: ToDoItem::empty(),
                 message: "Please set the 'user-id".to_string(),
             }),
         ),
@@ -237,10 +216,10 @@ async fn update_todo_endpoint(
 }
 
 fn check_user_header(headers: HeaderMap) -> Result<String, ()> {
-    if let Some(user_id) = headers.get("user-id") {
-        return Ok(user_id.to_str().unwrap().to_string());
+    return if let Some(user_id) = headers.get("user-id") {
+        Ok(user_id.to_str().unwrap().to_string())
     } else {
-        return Err(());
+        Err(())
     }
 }
 
@@ -318,7 +297,7 @@ mod tests {
                 .unwrap()
         }
 
-        async fn get(&self, id: &String) -> Response {
+        async fn get(&self, id: &str) -> Response {
             self.router
                 .clone()
                 .oneshot(
@@ -388,9 +367,9 @@ mod tests {
         assert!(!body.is_empty());
         let created_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*body.to_vec()).unwrap();
 
-        assert_eq!(&created_todo.data.title, test_text);
+        assert_eq!(created_todo.data.title, test_text);
 
-        let get_response = driver.get(&created_todo.data.id).await;
+        let get_response = driver.get(created_todo.data.id.as_str()).await;
 
         assert_eq!(get_response.status(), StatusCode::OK);
         let get_body = get_response.into_body().collect().await.unwrap().to_bytes();
@@ -427,9 +406,9 @@ mod tests {
 
         let get_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*get_body.to_vec()).unwrap();
 
-        assert_eq!(&get_todo.data.title, "My todo");
-        assert_eq!(&get_todo.data.description, "");
-        assert_eq!(&get_todo.data.due_date, "");
+        assert_eq!(get_todo.data.title, "My todo");
+        assert_eq!(get_todo.data.description, "");
+        assert_eq!(get_todo.data.due_date, "");
     }
 
     #[tokio::test]
@@ -463,9 +442,9 @@ mod tests {
 
         let get_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&*get_body.to_vec()).unwrap();
 
-        assert_eq!(&get_todo.data.title, "Updated todo");
-        assert_eq!(&get_todo.data.description, "updated description");
-        assert_eq!(&get_todo.data.due_date, "2023-08-12T00:00:00+00:00");
+        assert_eq!(get_todo.data.title, "Updated todo");
+        assert_eq!(get_todo.data.description, "updated description");
+        assert_eq!(get_todo.data.due_date, "2023-08-12T00:00:00+00:00");
     }
 
     #[tokio::test]

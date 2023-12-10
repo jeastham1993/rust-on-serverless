@@ -67,13 +67,13 @@ impl ToDoRepo for DynamoDbToDoRepo {
 
         if !todo.get_description().is_empty() {
             dynamo_request_builder = dynamo_request_builder
-                .item("description", AttributeValue::S(todo.get_description()));
+                .item("description", AttributeValue::S(todo.get_description().to_string()));
         }
 
         if !todo.get_due_date().is_empty() {
             dynamo_request_builder = dynamo_request_builder.item(
                 "dueDate",
-                AttributeValue::S(todo.get_due_date()),
+                AttributeValue::S(todo.get_due_date().to_string()),
             );
         }
 
@@ -107,12 +107,12 @@ impl ToDoRepo for DynamoDbToDoRepo {
 
 fn parse_todo_from_item(item: &HashMap<String, AttributeValue>) -> ToDo {
     ToDo::parse(
-        Title::new(item.get("title").unwrap().as_s().unwrap().clone()).unwrap(),
-        OwnerId::new(item.get("ownerId").unwrap().as_s().unwrap().clone())
+        Title::new(item.get("title").unwrap().as_s().unwrap()).unwrap(),
+        OwnerId::new(item.get("ownerId").unwrap().as_s().unwrap())
             .unwrap(),
         Some(item.get("status").unwrap().as_s().unwrap().clone()),
         Some(
-            ToDoId::parse(item.get("id").unwrap().as_s().unwrap().clone())
+            ToDoId::parse(item.get("id").unwrap().as_s().unwrap())
                 .unwrap(),
         ),
         match item.get("description") {

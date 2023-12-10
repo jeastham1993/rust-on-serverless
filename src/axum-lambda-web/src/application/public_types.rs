@@ -10,6 +10,18 @@ pub struct ToDoItem {
     pub due_date: String
 }
 
+impl ToDoItem {
+    pub fn empty() -> Self {
+        ToDoItem {
+            id: String::from(""),
+            title: String::from(""),
+            is_complete: false,
+            completed_on: String::from(""),
+            description: String::from(""),
+            due_date:String::from(""),
+        }
+    }
+}
 #[derive(Deserialize, Serialize)]
 pub struct CreateToDoCommand {
     pub title: String,
