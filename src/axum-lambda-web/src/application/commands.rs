@@ -15,7 +15,7 @@ pub async fn create_to_do(
     input: CreateToDoCommand,
     client: &Arc<dyn ToDoRepo + Send + Sync>,
     message_publisher: &Arc<dyn MessagePublisher + Send + Sync>,
-) -> Result<ToDoItem, ValidationError> {
+) -> Result<ToDoItem, ServiceError> {
     let parsed_title = Title::new(input.title.as_str());
     let parsed_ownerid = OwnerId::new(owner.as_str());
 
@@ -42,36 +42,18 @@ pub async fn create_to_do(
         parsed_ownerid.unwrap(),
         input.description,
         parsed_duedate,
-    );
+    )?;
 
-    match to_do {
-        Ok(val) => {
-            let db_res = client.create(&val).await;
+    let _ = client.create(&to_do).await?;
 
-            match db_res {
-                Ok(_) => {
-                    let _ = message_publisher
-                        .publish(MessageType::Created(ToDoCreated::new(
-                            val.get_id(),
-                            val.get_owner(),
-                        )))
-                        .await;
+    let _ = message_publisher
+        .publish(MessageType::Created(ToDoCreated::new(
+            to_do.get_id(),
+            to_do.get_owner(),
+        )))
+        .await;
 
-                    Ok(val.as_dto())
-                }
-                Err(_) => Err(ValidationError::new("Failure creating ToDo".to_string())),
-            }
-        }
-        Err(e) => {
-            let mut error_string = String::from("");
-
-            for err in e {
-                error_string = format!("{} {}", error_string, err);
-            }
-
-            Err(ValidationError::new(error_string))
-        }
-    }
+    Ok(ToDoItem::from(to_do))
 }
 
 pub async fn update_todo(
@@ -81,68 +63,48 @@ pub async fn update_todo(
     client: &Arc<dyn ToDoRepo + Send + Sync>,
     message_publisher: &Arc<dyn MessagePublisher + Send + Sync>,
 ) -> Result<ToDoItem, ServiceError> {
-    let query_res = client.get(&owner, &to_do_id).await;
+    let todo = client.get(&owner, &to_do_id).await?;
 
-    match query_res {
-        Ok(todo) => {
-            let updated_status = match update_command.set_as_complete {
-                true => todo.set_completed(),
-                false => todo,
-            };
+    let updated_status = match update_command.set_as_complete {
+        true => todo.set_completed(),
+        false => todo,
+    };
 
-            let updated_todo = updated_status.update_title(update_command.title.as_str());
+    let mut updated_todo = updated_status.update_title(update_command.title.as_str())?;
 
-            match updated_todo {
-                Ok(mut res) => {
-                    res = res.update_description(update_command.description)
-                        .update_due_date(update_command.due_date);
+    updated_todo = updated_todo
+        .update_description(update_command.description)
+        .update_due_date(update_command.due_date);
 
-                    if !res.has_changes() {
-                        return Ok(res.as_dto());
-                    }
-
-                    let database_result = client.create(&res).await;
-
-                    let _ = match update_command.set_as_complete {
-                        true => {
-                            message_publisher
-                                .publish(MessageType::Completed(ToDoCompleted::new(
-                                    res.get_id(),
-                                    res.get_owner(),
-                                )))
-                                .await
-                        }
-                        false => {
-                            message_publisher
-                                .publish(MessageType::Updated(ToDoUpdated::new(
-                                    res.get_id(),
-                                    res.get_owner(),
-                                )))
-                                .await
-                        }
-                    };
-
-                    match database_result {
-                        Ok(_) => Ok(res.as_dto()),
-                        Err(e) => {
-                            tracing::error!("{}", e.to_string());
-
-                            Err(ServiceError::new(e.to_string()))
-                        }
-                    }
-                }
-                Err(e) => Err(ServiceError::new(e.to_string())),
-            }
-        }
-        Err(e) => {
-            tracing::error!("{}", e.to_string());
-
-            Err(ServiceError::new(String::from("Record not found")))
-        }
+    if !updated_todo.has_changes() {
+        return Ok(ToDoItem::from(updated_todo));
     }
+
+    let _ = client.create(&updated_todo).await?;
+
+    let _ = match update_command.set_as_complete {
+        true => {
+            message_publisher
+                .publish(MessageType::Completed(ToDoCompleted::new(
+                    updated_todo.get_id(),
+                    updated_todo.get_owner(),
+                )))
+                .await
+        }
+        false => {
+            message_publisher
+                .publish(MessageType::Updated(ToDoUpdated::new(
+                    updated_todo.get_id(),
+                    updated_todo.get_owner(),
+                )))
+                .await
+        }
+    };
+
+    Ok(ToDoItem::from(updated_todo))
 }
 
-fn combine_errors(err: Vec<Option<ValidationError>>) -> ValidationError {
+fn combine_errors(err: Vec<Option<ValidationError>>) -> ServiceError {
     let mut error_builder = String::from("");
 
     for ele in err {
@@ -156,7 +118,7 @@ fn combine_errors(err: Vec<Option<ValidationError>>) -> ValidationError {
         )
     }
 
-    ValidationError::new(error_builder)
+    ServiceError::new(error_builder)
 }
 
 /// Unit tests
@@ -293,7 +255,7 @@ mod tests {
             &shared_state.todo_repo,
             &shared_state.message_publisher,
         )
-            .await;
+        .await;
 
         assert!(!to_dos.is_err());
         assert_eq!(to_dos.unwrap().description, "mydescription");
@@ -321,7 +283,7 @@ mod tests {
             &shared_state.todo_repo,
             &shared_state.message_publisher,
         )
-            .await;
+        .await;
 
         assert!(!to_dos.is_err());
         assert_eq!(to_dos.unwrap().due_date, "2023-08-13T00:00:00+00:00");

@@ -65,6 +65,36 @@ impl ServiceError {
     }
 }
 
+impl From<ValidationError> for ServiceError {
+    fn from(value: ValidationError) -> Self {
+        Self {
+            error_message: value.error_message,
+        }
+    }
+}
+
+impl From<RepositoryError> for ServiceError {
+    fn from(value: RepositoryError) -> Self {
+        Self {
+            error_message: value.error_message,
+        }
+    }
+}
+
+impl From<Vec<ValidationError>> for ServiceError {
+    fn from(value: Vec<ValidationError>) -> Self {
+        let mut error_string = String::from("");
+
+        for err in value {
+            error_string = format!("{} {}", error_string, err);
+        }
+
+        Self {
+            error_message: error_string,
+        }
+    }
+}
+
 // Generation of an error is completely separate from how it is displayed.
 // There's no need to be concerned about cluttering complex logic with the display style.
 //

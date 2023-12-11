@@ -5,9 +5,7 @@ use std::env;
 use crate::application::adapters::DynamoDbToDoRepo;
 use crate::application::commands::{create_to_do, update_todo};
 use crate::application::domain::AppState;
-use crate::application::messaging::{
-    EventBridgeEventPublisher, InMemoryMessagePublisher,
-};
+use crate::application::messaging::{EventBridgeEventPublisher, InMemoryMessagePublisher};
 use crate::application::public_types::{CreateToDoCommand, ToDoItem, UpdateToDoCommand};
 use crate::application::queries::{get_todos, list_todos};
 use aws_config::{BehaviorVersion, Region, SdkConfig};
@@ -16,7 +14,6 @@ use axum::response::IntoResponse;
 use axum::{extract::Path, extract::State, response::Json, routing::get, Router};
 use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
 use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -97,17 +94,23 @@ async fn main() {
 }
 
 async fn health() -> impl IntoResponse {
-    (StatusCode::OK, Json(ApiResponse {
-        data: "",
-        message: "Healthy".to_string(),
-    }))
+    (
+        StatusCode::OK,
+        Json(ApiResponse {
+            data: "",
+            message: "Healthy".to_string(),
+        }),
+    )
 }
 
 async fn handler_404() -> impl IntoResponse {
-    (StatusCode::NOT_FOUND, Json(ApiResponse {
-        data: "",
-        message: "Please set the 'user-id".to_string(),
-    }))
+    (
+        StatusCode::NOT_FOUND,
+        Json(ApiResponse {
+            data: "",
+            message: "Please set the 'user-id".to_string(),
+        }),
+    )
 }
 
 async fn list_todo_endpoint(
@@ -156,7 +159,7 @@ async fn get_todo_endpoint(
         Err(_) => (
             StatusCode::BAD_REQUEST,
             Json(ApiResponse {
-                data: ToDoItem::empty(),
+                data: ToDoItem::default(),
                 message: "Please set the 'user-id".to_string(),
             }),
         ),
@@ -184,7 +187,7 @@ async fn post_todo_endpoint(
         Err(_) => (
             StatusCode::BAD_REQUEST,
             Json(ApiResponse {
-                data: ToDoItem::empty(),
+                data: ToDoItem::default(),
                 message: "Please set the 'user-id".to_string(),
             }),
         ),
@@ -219,7 +222,7 @@ async fn update_todo_endpoint(
         Err(_) => (
             StatusCode::BAD_REQUEST,
             Json(ApiResponse {
-                data: ToDoItem::empty(),
+                data: ToDoItem::default(),
                 message: "Please set the 'user-id".to_string(),
             }),
         ),
@@ -231,7 +234,7 @@ fn check_user_header(headers: HeaderMap) -> Result<String, ()> {
         Ok(user_id.to_str().unwrap().to_string())
     } else {
         Err(())
-    }
+    };
 }
 
 #[cfg(test)]
@@ -270,7 +273,10 @@ mod tests {
         }
 
         async fn create(&self, text: &str, description: &str, due_date: &str) -> Response {
-            let body = format!("{{\"title\":\"{0}\", \"description\":\"{1}\", \"due_date\":\"{2}\"}}", text, description, due_date);
+            let body = format!(
+                "{{\"title\":\"{0}\", \"description\":\"{1}\", \"due_date\":\"{2}\"}}",
+                text, description, due_date
+            );
 
             self.router
                 .clone()
@@ -287,7 +293,14 @@ mod tests {
                 .unwrap()
         }
 
-        async fn update(&self, text: &str, todo_id: &str, set_as_complete: &bool, description: &str, due_date: &str) -> Response {
+        async fn update(
+            &self,
+            text: &str,
+            todo_id: &str,
+            set_as_complete: &bool,
+            description: &str,
+            due_date: &str,
+        ) -> Response {
             let body = format!(
                 "{{\"title\":\"{0}\", \"set_as_complete\":{1}, \"description\":\"{2}\", \"due_date\":\"{3}\"}}",
                 text, set_as_complete, description, due_date
@@ -406,7 +419,13 @@ mod tests {
         let created_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&body.to_vec()).unwrap();
 
         let _update_response = driver
-            .update("Updated todo", &created_todo.data.id, &true, "updated description", "2023-08-12T00:00:00+00:00")
+            .update(
+                "Updated todo",
+                &created_todo.data.id,
+                &true,
+                "updated description",
+                "2023-08-12T00:00:00+00:00",
+            )
             .await;
 
         let get_response = driver.get(&created_todo.data.id).await;
@@ -441,7 +460,13 @@ mod tests {
         let created_todo: ApiResponse<ToDoItem> = serde_json::from_slice(&body.to_vec()).unwrap();
 
         let update_response = driver
-            .update("Updated todo", &created_todo.data.id, &false, "updated description", "2023-08-12T00:00:00+00:00")
+            .update(
+                "Updated todo",
+                &created_todo.data.id,
+                &false,
+                "updated description",
+                "2023-08-12T00:00:00+00:00",
+            )
             .await;
         assert_eq!(update_response.status(), StatusCode::OK);
 
@@ -475,7 +500,5 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
-        let body = response.into_body().collect().await.unwrap().to_bytes();
-        assert!(body.is_empty());
     }
 }

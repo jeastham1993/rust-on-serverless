@@ -1,3 +1,4 @@
+use crate::application::helpers::check_not_empty_and_length_less_than;
 use crate::application::messaging::MessagePublisher;
 use async_trait::async_trait;
 use chrono::{DateTime, FixedOffset, Utc};
@@ -5,12 +6,8 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
 use uuid::Uuid;
-use crate::application::helpers::check_not_empty_and_length_less_than;
 
-use super::{
-    error_types::{RepositoryError, ValidationError},
-    public_types::ToDoItem,
-};
+use super::error_types::{RepositoryError, ValidationError};
 
 pub struct AppState {
     pub todo_repo: Arc<dyn ToDoRepo + Send + Sync>,
@@ -179,7 +176,7 @@ impl ToDo {
 
         match desc {
             None => "",
-            Some(val) => val
+            Some(val) => val,
         }
     }
 
@@ -192,7 +189,7 @@ impl ToDo {
 
         match due_date {
             None => String::from(""),
-            Some(date) => date.to_rfc3339().to_string()
+            Some(date) => date.to_rfc3339().to_string(),
         }
     }
 
@@ -232,16 +229,12 @@ impl ToDo {
     /// If the ToDo is already completed then the title cannot be updated.
     /// Returns a new ToDo
     pub(crate) fn update_title(self, new_title: &str) -> Result<ToDo, ValidationError> {
-        let new_title_value = Title::new(new_title);
-
-        if new_title_value.is_err() {
-            return Err(new_title_value.err().unwrap());
-        }
+        let new_title_value = Title::new(new_title)?;
 
         let response = match &self {
             ToDo::Incomplete(incomplete) => ToDo::Incomplete(IncompleteToDo {
                 to_do_id: incomplete.to_do_id.clone(),
-                title: new_title_value.unwrap(),
+                title: new_title_value,
                 owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
                 description: incomplete.description.clone(),
                 due_date: incomplete.due_date,
@@ -261,41 +254,33 @@ impl ToDo {
         Ok(response)
     }
 
-    pub(crate) fn update_description(
-        self,
-        new_description: Option<String>,
-    ) -> ToDo {
+    pub(crate) fn update_description(self, new_description: Option<String>) -> ToDo {
         let response = match new_description {
             None => self,
-            Some(desc) => {
-                match &self {
-                    ToDo::Incomplete(incomplete) => ToDo::Incomplete(IncompleteToDo {
-                        to_do_id: incomplete.to_do_id.clone(),
-                        title: incomplete.title.clone(),
-                        owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
-                        description: Some(desc),
-                        due_date: incomplete.due_date,
-                        has_changes: true,
-                    }),
-                    ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
-                        to_do_id: complete.to_do_id.clone(),
-                        title: Title::new(complete.title.to_string()).unwrap(),
-                        owner: OwnerId::new(complete.owner.to_string()).unwrap(),
-                        description: complete.description.clone(),
-                        due_date: complete.due_date,
-                        completed_on: complete.completed_on,
-                        has_changes: self.has_changes(),
-                    }),
-                }
-            }
+            Some(desc) => match &self {
+                ToDo::Incomplete(incomplete) => ToDo::Incomplete(IncompleteToDo {
+                    to_do_id: incomplete.to_do_id.clone(),
+                    title: incomplete.title.clone(),
+                    owner: OwnerId::new(incomplete.owner.to_string()).unwrap(),
+                    description: Some(desc),
+                    due_date: incomplete.due_date,
+                    has_changes: true,
+                }),
+                ToDo::Complete(complete) => ToDo::Complete(CompleteToDo {
+                    to_do_id: complete.to_do_id.clone(),
+                    title: Title::new(complete.title.to_string()).unwrap(),
+                    owner: OwnerId::new(complete.owner.to_string()).unwrap(),
+                    description: complete.description.clone(),
+                    due_date: complete.due_date,
+                    completed_on: complete.completed_on,
+                    has_changes: self.has_changes(),
+                }),
+            },
         };
 
         response
     }
-    pub(crate) fn update_due_date(
-        self,
-        new_due_date: Option<String>,
-    ) -> ToDo {
+    pub(crate) fn update_due_date(self, new_due_date: Option<String>) -> ToDo {
         let response = match new_due_date {
             None => self,
             Some(due_date) => {
@@ -321,7 +306,7 @@ impl ToDo {
                             has_changes: self.has_changes(),
                         }),
                     },
-                    Err(_) => self
+                    Err(_) => self,
                 }
             }
         };
@@ -353,30 +338,12 @@ impl ToDo {
         }
     }
 
-    /// Convert the ToDo into a ToDoItem Data Transfer Object
-    pub(crate) fn as_dto(&self) -> ToDoItem {
-        ToDoItem {
-            id: self.get_id().to_string(),
-            is_complete: match &self {
-                ToDo::Incomplete(_) => false,
-                ToDo::Complete(_) => true
-            },
-            title: self.get_title().to_string(),
-            description: self.get_description().to_string(),
-            due_date: self.get_due_date(),
-            completed_on: self.get_completed_on(),
-        }
-    }
-
     fn check_title(input: &Title) -> Result<(), ValidationError> {
         tracing::info!("Checking title: '{}'", input.to_string());
 
-        let valid = check_not_empty_and_length_less_than(input.to_string(), 50);
+        let _ = check_not_empty_and_length_less_than(input.to_string(), 50)?;
 
-        match valid {
-            Ok(_) => Ok(()),
-            Err(err) => Err(err)
-        }
+        Ok(())
     }
 
     fn check_owner_id(input: &OwnerId) -> Result<(), ValidationError> {
@@ -424,14 +391,11 @@ impl ToDoId {
     }
 
     pub fn parse(existing_id: &str) -> Result<ToDoId, ValidationError> {
-        let valid = check_not_empty_and_length_less_than(existing_id, 50);
+        let _ = check_not_empty_and_length_less_than(existing_id, 50)?;
 
-        match valid {
-            Ok(_) => Ok(ToDoId {
-                value: existing_id.to_string(),
-            }),
-            Err(err) => Err(err)
-        }
+        Ok(ToDoId {
+            value: existing_id.to_string(),
+        })
     }
 
     pub fn to_string(&self) -> &str {
@@ -446,14 +410,11 @@ pub(crate) struct Title {
 
 impl Title {
     pub fn new(title: &str) -> Result<Title, ValidationError> {
-        let valid = check_not_empty_and_length_less_than(title, 50);
+        let _ = check_not_empty_and_length_less_than(title, 50)?;
 
-        match valid {
-            Ok(_) => Ok(Title {
-                value: title.to_string(),
-            }),
-            Err(e) => Err(e)
-        }
+        Ok(Title {
+            value: title.to_string(),
+        })
     }
 
     pub fn to_string(&self) -> &str {
@@ -468,14 +429,11 @@ pub(crate) struct OwnerId {
 
 impl OwnerId {
     pub fn new(owner_id: &str) -> Result<OwnerId, ValidationError> {
-        let valid = check_not_empty_and_length_less_than(owner_id, 50);
+        let _ = check_not_empty_and_length_less_than(owner_id, 50)?;
 
-        match valid {
-            Ok(_) => Ok(OwnerId {
-                value: owner_id.to_string(),
-            }),
-            Err(e) => Err(e)
-        }
+        Ok(OwnerId {
+            value: owner_id.to_string(),
+        })
     }
 
     pub fn to_string(&self) -> &str {

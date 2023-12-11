@@ -13,7 +13,7 @@ pub async fn list_todos(
             let mut to_do_items: Vec<ToDoItem> = Vec::new();
 
             for todo in todos {
-                to_do_items.push(todo.as_dto());
+                to_do_items.push(ToDoItem::from(todo));
             }
 
             Ok(to_do_items)
@@ -30,7 +30,7 @@ pub async fn get_todos(
     let query_res = client.get(owner, to_do_id).await;
 
     match query_res {
-        Ok(todo) => Ok(todo.as_dto()),
+        Ok(todo) => Ok(ToDoItem::from(todo)),
         Err(_) => Err(()),
     }
 }

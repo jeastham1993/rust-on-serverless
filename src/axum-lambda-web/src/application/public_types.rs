@@ -1,27 +1,32 @@
+use crate::application::domain::ToDo;
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Default)]
 pub struct ToDoItem {
     pub id: String,
     pub title: String,
     pub is_complete: bool,
     pub completed_on: String,
     pub description: String,
-    pub due_date: String
+    pub due_date: String,
 }
 
-impl ToDoItem {
-    pub fn empty() -> Self {
+impl From<ToDo> for ToDoItem {
+    fn from(value: ToDo) -> Self {
         ToDoItem {
-            id: String::from(""),
-            title: String::from(""),
-            is_complete: false,
-            completed_on: String::from(""),
-            description: String::from(""),
-            due_date:String::from(""),
+            id: value.get_id().to_string(),
+            is_complete: match &value {
+                ToDo::Incomplete(_) => false,
+                ToDo::Complete(_) => true,
+            },
+            title: value.get_title().to_string(),
+            description: value.get_description().to_string(),
+            due_date: value.get_due_date(),
+            completed_on: value.get_completed_on(),
         }
     }
 }
+
 #[derive(Deserialize, Serialize)]
 pub struct CreateToDoCommand {
     pub title: String,
